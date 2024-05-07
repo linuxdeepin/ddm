@@ -52,3 +52,17 @@ Depends: ${shlibs:Depends},
 Recommends: libpam-systemd, xwayland
 Description: a modern display manager for Wayland sessions aiming to be fast, simple and beautiful.
 
+Package: libddm
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Multi-Arch: same
+Description: DDM library
+  provide PAM libraries
+
+Package: libddm-dev
+Architecture: any
+Depends: ${misc:Depends},
+         libddm( =${binary:Version}),
+         qt6-base-dev
+Description: DDM devel library
+  provide PAM headers

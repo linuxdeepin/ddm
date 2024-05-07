@@ -33,5 +33,3 @@ install(FILES
 if(BUILD_MAN_PAGES)
     add_subdirectory(man)
 endif()
-add_subdirectory(themes)
-add_subdirectory(translations)

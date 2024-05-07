@@ -1,0 +1,6 @@
+usr/bin/*
+usr/libexec/*
+usr/share/*
+usr/lib/systemd/*
+usr/lib/tmpfiles.d/*
+etc/*
