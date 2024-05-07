@@ -16,7 +16,7 @@ add_library(auth SHARED ${PUBLIC_HEADERS} ${SRCS})
 set_target_properties(auth PROPERTIES
     VERSION ${CMAKE_PROJECT_VERSION}
     SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
-    OUTPUT_NAME auth
+    OUTPUT_NAME ddm-auth
     EXPORT_NAME Auth
 )
 
@@ -43,7 +43,21 @@ else()
     target_link_libraries(auth PUBLIC crypt)
 endif()
 
+# 安装库和头文件
+install(
+    TARGETS auth
+    EXPORT AuthTargets
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include/ddm/auth
+)
 
 install(FILES ${PUBLIC_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/ddm/auth")
-install(TARGETS auth EXPORT DDMAuthTargets DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-install(EXPORT DDMAuthTargets NAMESPACE DDM::Auth:: FILE DDMAuthTargets.cmake DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/ddm")
+
+# 导出目标文件
+install(EXPORT AuthTargets
+        FILE AuthTargets.cmake
+        NAMESPACE DDM::
+        DESTINATION lib/cmake/DDM
+)

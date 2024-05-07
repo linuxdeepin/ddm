@@ -226,3 +226,34 @@ add_subdirectory(src)
 
 # Display feature summary
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
+
+# CMAKE MODULE
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/data/DDMConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfig.cmake"
+    INSTALL_DESTINATION lib/cmake/DDM
+    PATH_VARS CMAKE_INSTALL_PREFIX
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/data/AuthConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/data/AuthConfig.cmake"
+    INSTALL_DESTINATION lib/cmake/DDM
+    PATH_VARS CMAKE_INSTALL_PREFIX
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/data/CommonConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/data/CommonConfig.cmake"
+    INSTALL_DESTINATION lib/cmake/DDM
+    PATH_VARS CMAKE_INSTALL_PREFIX
+)
+
+install(
+    FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/data/AuthConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/data/CommonConfig.cmake"
+    DESTINATION lib/cmake/DDM
+)

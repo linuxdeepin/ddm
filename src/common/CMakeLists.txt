@@ -13,6 +13,7 @@ set(PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/src/common/VirtualTerminal.h
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.h
     ${CMAKE_BINARY_DIR}/src/common/Constants.h
+    ${CMAKE_SOURCE_DIR}/src/common/LogindDBusTypes.h
 )
 
 set(SRCS
@@ -34,7 +35,7 @@ add_library(common SHARED ${PUBLIC_HEADERS} ${SRCS})
 set_target_properties(common PROPERTIES
     VERSION ${CMAKE_PROJECT_VERSION}
     SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
-    OUTPUT_NAME common
+    OUTPUT_NAME ddm-common
     EXPORT_NAME Common
 )
 
@@ -58,6 +59,19 @@ target_link_directories(common INTERFACE
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_LIBDIR}>
 )
 
+install(
+    TARGETS common
+    EXPORT CommonTargets
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include/ddm/common
+)
+
 install(FILES ${PUBLIC_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/ddm/common")
-install(TARGETS common EXPORT DDMCommonTargets DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-install(EXPORT DDMCommonTargets NAMESPACE DDM::Common:: FILE DDMCommonTargets.cmake DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/ddm")
+
+install(EXPORT CommonTargets
+        FILE CommonTargets.cmake
+        NAMESPACE DDM::
+        DESTINATION lib/cmake/DDM
+)
