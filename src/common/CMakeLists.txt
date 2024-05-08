@@ -40,7 +40,7 @@ set_target_properties(common PROPERTIES
 )
 
 target_link_libraries(common
-    PUBLIC
+    PRIVATE
         Qt${QT_MAJOR_VERSION}::DBus
         Qt${QT_MAJOR_VERSION}::Network
         Qt${QT_MAJOR_VERSION}::Qml
