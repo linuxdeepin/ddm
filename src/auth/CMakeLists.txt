@@ -38,9 +38,9 @@ target_link_directories(auth INTERFACE
 )
 
 if(PAM_FOUND)
-    target_link_libraries(auth PUBLIC ${PAM_LIBRARIES})
+    target_link_libraries(auth PRIVATE ${PAM_LIBRARIES})
 else()
-    target_link_libraries(auth PUBLIC crypt)
+    target_link_libraries(auth PRIVATE crypt)
 endif()
 
 # 安装库和头文件
