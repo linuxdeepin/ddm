@@ -16,6 +16,7 @@ add_executable(ddm-helper ${HELPER_SOURCES})
 target_link_libraries(ddm-helper
     PRIVATE
         auth
+        ${PAM_LIBRARIES}
     PUBLIC
         Qt${QT_MAJOR_VERSION}::Network
         Qt${QT_MAJOR_VERSION}::DBus
