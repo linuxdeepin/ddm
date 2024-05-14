@@ -25,8 +25,6 @@ using namespace DDM;
 SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServer, Display *parent)
     : DDM::WaylandDisplayServer(parent)
     , m_socketServer(socketServer)
-    , m_helperServer(new QLocalServer(this))
-    , m_helperSocket(nullptr)
     , m_helper(new QProcess(this))
 {
     QProcess *m_seatd = new QProcess(this);
@@ -55,81 +53,11 @@ SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServe
 
     QString socketName = QStringLiteral("treeland-helper-%1").arg(generateName(6));
 
-    // set server options
-    m_helperServer->setSocketOptions(QLocalServer::UserAccessOption);
-
-    // start listening
-    if (!m_helperServer->listen(socketName)) {
-        // log message
-        qCritical() << "Failed to start socket server.";
-        // return fail
-        return;
-    }
-
     // log message
     qDebug() << "Socket server started.";
 
-    // connect signals
-     connect(m_helperServer, &QLocalServer::newConnection, this, [this] {
-        QLocalSocket *socket = m_helperServer->nextPendingConnection();
-
-        // connect signals
-        connect(socket, &QLocalSocket::readyRead, this, [this] {
-            QLocalSocket *socket = qobject_cast<QLocalSocket *>(sender());
-            QDataStream input(socket);
-
-            while (input.device()->bytesAvailable()) {
-                // read message
-                quint32 message;
-                input >> message;
-
-                switch (TreelandMessages(message)) {
-                    case TreelandMessages::Connect: {
-                        m_helperSocket = socket;
-                    }
-                    break;
-                    case TreelandMessages::CreateWaylandSocket: {
-                        QString username;
-                        QString path;
-                        input >> username >> path;
-
-                        m_waylandSockets[username] = path;
-                        emit createWaylandSocketFinished();
-                        for (auto greeter : m_greeterSockets) {
-                            SocketWriter(greeter) << quint32(DaemonMessages::WaylandSocketCreated) << username;
-                        }
-                    }
-                    break;
-                    case TreelandMessages::DeleteWaylandSocket: {
-                        QString username;
-                        input >> username;
-
-                        qDebug() << Q_FUNC_INFO << "wayland socket deleted.";
-
-                        m_waylandSockets.remove(username);
-                        for (auto greeter : m_greeterSockets) {
-                            SocketWriter(greeter) << quint32(DaemonMessages::WaylandSocketDeleted) << username;
-                        }
-                    }
-                    break;
-                    default:
-                    break;
-                }
-            }
-        });
-        connect(socket, &QLocalSocket::disconnected, socket, &QLocalSocket::deleteLater);
-    });
-
     connect(m_socketServer, &SocketServer::connected, this, [this](QLocalSocket *socket) {
         m_greeterSockets << socket;
-    });
-    connect(m_socketServer, &SocketServer::requestStartHelper, this, [this](QLocalSocket *, const QString &path) {
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        env.insert("WAYLAND_DISPLAY", path);
-        m_helper->setProgram(QString("%1/treeland-helper").arg(QStringLiteral(LIBEXEC_INSTALL_DIR)));
-        m_helper->setArguments({"--socket", m_helperServer->fullServerName()});
-        m_helper->setProcessEnvironment(env);
-        m_helper->start();
     });
     connect(m_socketServer, &SocketServer::disconnected, this, [this](QLocalSocket *socket) {
         m_greeterSockets.removeOne(socket);
@@ -151,14 +79,6 @@ void SingleWaylandDisplayServer::activateUser(const QString &user) {
             displayPtr()->activateUser(user); // IOCTL activate
         }
     }
-}
-
-void SingleWaylandDisplayServer::createWaylandSocket(const QString &user) {
-    SocketWriter(m_helperSocket) << quint32(DaemonMessages::CreateWaylandSocket) << user;
-}
-
-void SingleWaylandDisplayServer::deleteWaylandSocket(const QString &user) {
-    SocketWriter(m_helperSocket) << quint32(DaemonMessages::DeleteWaylandSocket) << user;
 }
 
 QString SingleWaylandDisplayServer::getUserWaylandSocket(const QString &user) const {

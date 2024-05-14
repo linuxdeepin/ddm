@@ -167,7 +167,7 @@ endif()
 
 # Set constants
 set(DATA_INSTALL_DIR            "${CMAKE_INSTALL_FULL_DATADIR}/ddm"                CACHE PATH      "System application data install directory")
-set(DBUS_CONFIG_DIR             "${CMAKE_INSTALL_SYSCONFDIR}/dbus-1/system.d"       CACHE PATH      "DBus config files directory")
+set(DBUS_CONFIG_DIR             "${CMAKE_INSTALL_FULL_SYSCONFDIR}/dbus-1/system.d"       CACHE PATH      "DBus config files directory")
 set(STATE_DIR                   "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/ddm"      CACHE PATH      "State directory")
 set(RUNTIME_DIR                 "${RUNTIME_DIR_DEFAULT}"                            CACHE PATH      "Runtime data storage directory")
 set(QML_INSTALL_DIR             "${QT_IMPORTS_DIR}"                                 CACHE PATH      "QML component installation directory")

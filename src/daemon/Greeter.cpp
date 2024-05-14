@@ -324,18 +324,6 @@ namespace DDM {
         m_auth->deleteLater();
         m_auth = nullptr;
 
-        //NOTE: remove this in future
-#ifdef NDEBUG
-        if (status != Auth::HELPER_SUCCESS and m_maxRetry-- > 0) {
-            stop();
-            qInfo() << "restart Greeter...";
-            if (start()) { // if restart successfully, reset retry times.
-                m_maxRetry = 3;
-            }
-            return;
-        }
-#endif
-
         if (status == Auth::HELPER_DISPLAYSERVER_ERROR) {
             Q_EMIT displayServerFailed();
         } else if (status == Auth::HELPER_TTY_ERROR) {
@@ -343,10 +331,6 @@ namespace DDM {
         } else if (status == Auth::HELPER_SESSION_ERROR) {
             Q_EMIT failed();
         }
-#ifdef NDEBUG
-        daemonApp->backToNormal();
-        daemonApp->powerManager()->reboot();
-#endif
     }
 
     bool Greeter::isRunning() const {

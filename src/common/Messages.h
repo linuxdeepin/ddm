@@ -25,7 +25,6 @@
 namespace DDM {
     enum class GreeterMessages {
         Connect = 0,
-        StartHelper,
         Login,
         PowerOff,
         Reboot,

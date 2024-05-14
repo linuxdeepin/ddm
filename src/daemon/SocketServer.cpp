@@ -134,13 +134,6 @@ namespace DDM {
                     emit connected(socket);
                 }
                 break;
-                case GreeterMessages::StartHelper: {
-                    QString path;
-                    input >> path;
-
-                    emit requestStartHelper(socket, path);
-                }
-                break;
                 case GreeterMessages::Login: {
                     // log message
                     qDebug() << "Message received from greeter: Login";

@@ -36,9 +36,9 @@ bool SingleWaylandHelper::start(const QString &compositor, const QString &cmd)
         qInfo() << m_process->readAllStandardOutput();
     });
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            m_process, [](int exitCode, QProcess::ExitStatus exitStatus) {
-        qDebug() << "wayland greeter finished" << exitCode << exitStatus;
-        QCoreApplication::instance()->quit();
+            m_process, [this](int exitCode, QProcess::ExitStatus exitStatus) {
+        qDebug() << "TreeLand stopped. It will restart." << exitCode << exitStatus;
+        m_process->start();
     });
 
     m_process->start();

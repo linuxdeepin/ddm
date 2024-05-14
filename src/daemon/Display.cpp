@@ -531,33 +531,14 @@ namespace DDM {
             auth->setDisplayServerCommand(XorgUserDisplayServer::command(this));
         } else {
             if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
-                auto* displayServer = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
-
-                QEventLoop loop;
-                connect(displayServer, &SingleWaylandDisplayServer::createWaylandSocketFinished, &loop, &QEventLoop::quit);
-
-                // create wayland socket
-                displayServer->createWaylandSocket(user);
-
-                if (displayServer->getUserWaylandSocket(user).isEmpty()) {
-                    loop.exec();
-                }
-
-                const QString &display = displayServer->getUserWaylandSocket(user);
-                env.insert(QStringLiteral("WAYLAND_DISPLAY"), display);
-
                 #ifdef QT_DEBUG
                 env.insert("WAYLAND_DEBUG", "1");
                 #endif
 
-                env.insert("DDE_CURRENT_COMPOSITER", "TreeLand"); // TODO: remove when dde-desktop and dde-shell changed!
                 env.insert("DDE_CURRENT_COMPOSITOR", "TreeLand");
-
-                auth->setDisplayServerCommand(QStringLiteral());
-                qInfo() << "WAYLAND_DISPLAY => " << display;
-            } else {
-                auth->setDisplayServerCommand(QStringLiteral());
             }
+
+            auth->setDisplayServerCommand(QStringLiteral());
         }
 
         auth->setUser(user);
@@ -651,10 +632,6 @@ namespace DDM {
 
         if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
             auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
-            if(!auth->identifyOnly()){
-                server->deleteWaylandSocket(auth->user());
-            }
-
             // TODO: switch to greeter
             server->activateUser("dde");
             return;
