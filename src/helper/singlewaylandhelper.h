@@ -14,4 +14,6 @@ public:
 
 private:
     QProcess *m_process;
+    int m_wCompositorCrashCount;
+    int m_maxCrashCountLimit;
 };

@@ -10,6 +10,8 @@
 
 SingleWaylandHelper::SingleWaylandHelper(QObject *parent)
     : QObject(parent)
+    , m_wCompositorCrashCount(0)
+    , m_maxCrashCountLimit(3)
 {}
 
 bool SingleWaylandHelper::start(const QString &compositor, const QString &cmd)
@@ -37,7 +39,24 @@ bool SingleWaylandHelper::start(const QString &compositor, const QString &cmd)
     });
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             m_process, [this](int exitCode, QProcess::ExitStatus exitStatus) {
-        qDebug() << "TreeLand stopped. It will restart." << exitCode << exitStatus;
+        qDebug() << "kwin_wayland exit with exitCode:" << exitCode << exitStatus;
+        if (exitCode == 0) {
+            qApp->quit();
+            return;
+        } else if (exitCode == 133) {
+            m_wCompositorCrashCount = 0;
+        } else {
+            m_wCompositorCrashCount++;
+        }
+
+        if (m_wCompositorCrashCount > m_maxCrashCountLimit) {
+            qApp->quit();
+            return;
+        }
+
+        qWarning() << "WAYLAND Restart count: " << QByteArray::number(m_wCompositorCrashCount);
+
+        // restart
         m_process->start();
     });
 

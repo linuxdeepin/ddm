@@ -48,10 +48,6 @@ namespace DDM {
         LoginSucceeded,
         LoginFailed,
         InformationMessage,
-        CreateWaylandSocket,
-        DeleteWaylandSocket,
-        WaylandSocketCreated,
-        WaylandSocketDeleted,
         UserActivateMessage,
         SwitchToGreeter,
     };

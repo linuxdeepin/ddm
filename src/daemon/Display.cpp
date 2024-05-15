@@ -587,8 +587,10 @@ namespace DDM {
                 stateConfig.Last.Session.setDefault();
             stateConfig.save();
 
-            if (m_socket)
+            if (m_socket) {
                 emit loginSucceeded(m_socket, user);
+                daemonApp->displayManager()->setLastSession(auth->sessionId());
+            }
         }
         m_socket = nullptr;
     }
