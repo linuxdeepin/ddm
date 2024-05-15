@@ -56,7 +56,7 @@ SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServe
     // log message
     qDebug() << "Socket server started.";
 
-    connect(m_socketServer, &SocketServer::connected, this, [this](QLocalSocket *socket) {
+    connect(m_socketServer, &SocketServer::connected, this, [this, parent](QLocalSocket *socket) {
         m_greeterSockets << socket;
     });
     connect(m_socketServer, &SocketServer::disconnected, this, [this](QLocalSocket *socket) {

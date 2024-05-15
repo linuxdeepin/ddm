@@ -117,6 +117,11 @@ namespace DDM {
                 // remove from list
                 m_sessions.removeAll(session);
 
+                if (name == m_lastSession.path()) {
+                    m_lastSession = ObjectPath();
+                    Q_EMIT LastSessionChanged(m_lastSession);
+                }
+
                 // get object path
                 ObjectPath path = ObjectPath(session->Path());
 
@@ -125,6 +130,17 @@ namespace DDM {
 
                 // emit signal
                 emit SessionRemoved(path);
+            }
+        }
+    }
+
+    void DisplayManager::setLastSession(const QString &name) {
+        // find session
+        for (DisplayManagerSession *session: m_sessions) {
+            if (session->Name() == name) {
+                m_lastSession = ObjectPath(session->Path());
+                Q_EMIT LastSessionChanged(m_lastSession);
+                break;
             }
         }
     }

@@ -68,6 +68,10 @@ namespace DDM {
         void switchToUser(const QString &user);
         void activateUser(const QString &user);
 
+        QVector<Auth*> loginedSession() const {
+            return m_auths;
+        }
+
     public slots:
         bool start();
         void stop();

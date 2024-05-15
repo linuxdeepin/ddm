@@ -40,6 +40,7 @@ namespace DDM {
         Q_DISABLE_COPY(DisplayManager)
         Q_PROPERTY(QList<QDBusObjectPath> Seats READ Seats CONSTANT)
         Q_PROPERTY(QList<QDBusObjectPath> Sessions READ Sessions CONSTANT)
+        Q_PROPERTY(QDBusObjectPath LastSession READ LastSession NOTIFY LastSessionChanged CONSTANT)
     public:
         DisplayManager(QObject *parent = 0);
 
@@ -48,22 +49,28 @@ namespace DDM {
 
         ObjectPathList Seats() const;
         ObjectPathList Sessions(DisplayManagerSeat *seat = nullptr) const;
+        QDBusObjectPath LastSession() const {
+            return m_lastSession;
+        }
 
     public slots:
         void AddSeat(const QString &name);
         void RemoveSeat(const QString &name);
         void AddSession(const QString &name, const QString &seat, const QString &user);
         void RemoveSession(const QString &name);
+        void setLastSession(const QString &session);
 
     signals:
         void SeatAdded(ObjectPath seat);
         void SeatRemoved(ObjectPath seat);
         void SessionAdded(ObjectPath session);
         void SessionRemoved(ObjectPath session);
+        void LastSessionChanged(ObjectPath session);
 
     private:
         QList<DisplayManagerSeat *> m_seats;
         QList<DisplayManagerSession *> m_sessions;
+        QDBusObjectPath m_lastSession;
     };
 
     /***************************************************************************
