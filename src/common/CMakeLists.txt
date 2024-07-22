@@ -62,8 +62,8 @@ target_link_directories(common INTERFACE
 install(
     TARGETS common
     EXPORT CommonTargets
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION bin
     INCLUDES DESTINATION include/ddm/common
 )
@@ -73,5 +73,5 @@ install(FILES ${PUBLIC_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/ddm/com
 install(EXPORT CommonTargets
         FILE CommonTargets.cmake
         NAMESPACE DDM::
-        DESTINATION lib/cmake/DDM
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DDM
 )
