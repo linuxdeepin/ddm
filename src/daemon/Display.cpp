@@ -587,10 +587,16 @@ namespace DDM {
                 stateConfig.Last.Session.setDefault();
             stateConfig.save();
 
-            if (m_socket) {
-                emit loginSucceeded(m_socket, user);
-                daemonApp->displayManager()->setLastSession(auth->sessionId());
+            if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
+                auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
+                server->onLoginSucceeded(user);
+            } else {
+                if (m_socket) {
+                    emit loginSucceeded(m_socket, user);
+                    daemonApp->displayManager()->setLastSession(auth->sessionId());
+                }
             }
+
         }
         m_socket = nullptr;
     }
@@ -613,8 +619,14 @@ namespace DDM {
             return;
 
         m_socketServer->informationMessage(m_socket, message);
-        if (error == Auth::ERROR_AUTHENTICATION)
-            emit loginFailed(m_socket, auth->user());
+        if (error == Auth::ERROR_AUTHENTICATION) {
+            if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
+                auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
+                server->onLoginFailed(auth->user());
+            } else {
+                emit loginFailed(m_socket, auth->user());
+            }
+        }
     }
 
     void Display::slotHelperFinished(Auth::HelperExitStatus status) {

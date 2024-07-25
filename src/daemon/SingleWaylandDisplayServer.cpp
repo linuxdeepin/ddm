@@ -83,3 +83,15 @@ void SingleWaylandDisplayServer::activateUser(const QString &user) {
 QString SingleWaylandDisplayServer::getUserWaylandSocket(const QString &user) const {
     return m_waylandSockets.value(user);
 }
+
+void SingleWaylandDisplayServer::onLoginFailed(const QString &user) {
+    for (auto greeter : m_greeterSockets) {
+        SocketWriter(greeter) << quint32(DaemonMessages::LoginFailed) << user;
+    }
+}
+
+void SingleWaylandDisplayServer::onLoginSucceeded(const QString &user) {
+    for (auto greeter : m_greeterSockets) {
+        SocketWriter(greeter) << quint32(DaemonMessages::LoginSucceeded) << user;
+    }
+}
