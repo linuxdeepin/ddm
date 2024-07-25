@@ -630,14 +630,14 @@ namespace DDM {
 
         if(!auth->identifyOnly()) {
             daemonApp->displayManager()->RemoveSession(auth->sessionId());
+            if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
+                auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
+                // TODO: switch to greeter
+                server->activateUser("dde");
+                return;
+            }
         }
 
-        if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
-            auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
-            // TODO: switch to greeter
-            server->activateUser("dde");
-            return;
-        }
         if (status != Auth::HELPER_AUTH_ERROR && m_displayServerType != DisplayServerType::SingleCompositerServerType)
             stop();
     }
