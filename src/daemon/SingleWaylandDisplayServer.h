@@ -26,6 +26,8 @@ Q_SIGNALS:
 public Q_SLOTS:
     void activateUser(const QString &user);
     QString getUserWaylandSocket(const QString &user) const;
+    void onLoginFailed(const QString &user);
+    void onLoginSucceeded(const QString &user);
 
 private:
     DDM::SocketServer *m_socketServer;
