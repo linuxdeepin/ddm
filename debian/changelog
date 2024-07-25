@@ -1,3 +1,9 @@
+ddm (0.1.2) unstable; urgency=medium
+
+  * fix some bugs
+
+ -- Dingyuan Zhang <zhangdingyuan@uniontech.com>  Thu, 25 Jul 2024 17:19:00 +0800
+
 ddm (0.1.1) unstable; urgency=medium
 
   * fix some bugs
