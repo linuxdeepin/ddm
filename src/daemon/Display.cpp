@@ -210,17 +210,6 @@ namespace DDM {
         server->activateUser(user);
     }
 
-    void Display::activateUser(const QString &user) {
-        for (auto auth : m_auths) {
-            if (auth->user() == user) {
-                QString ttyString = VirtualTerminal::path(auth->tty());
-                int vtFd = open(qPrintable(ttyString), O_RDWR | O_NOCTTY);
-                qDebug() << user << " ioctl " << ioctl(vtFd, VT_ACTIVATE, auth->tty());
-                break;
-            }
-        }
-    }
-
     bool Display::start() {
         return m_started || m_displayServer->start();
     }
