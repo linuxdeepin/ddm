@@ -76,7 +76,6 @@ void SingleWaylandDisplayServer::activateUser(const QString &user) {
         }
 
         SocketWriter(greeter) << quint32(DaemonMessages::UserActivateMessage) << user;
-        displayPtr()->activateUser(user); // IOCTL activate
     }
 }
 

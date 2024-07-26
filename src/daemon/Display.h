@@ -66,7 +66,6 @@ namespace DDM {
 
         Seat *seat() const;
         void switchToUser(const QString &user);
-        void activateUser(const QString &user);
 
         QVector<Auth*> loginedSession() const {
             return m_auths;
