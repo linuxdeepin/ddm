@@ -217,7 +217,7 @@ namespace DDM {
             // when this is true we'll take control of the tty
             bool takeControl = false;
 
-            if (vtFd > 0) {
+            if (vtFd > 0 && !m_helperApp->isSingleMode()) {
                 dup2(vtFd, STDIN_FILENO);
                 ::close(vtFd);
                 takeControl = true;
