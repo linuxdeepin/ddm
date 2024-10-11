@@ -87,7 +87,7 @@ namespace DDM {
         );
 
         Section(Single,
-            Entry(CompositorCommand,   QString,     _S("treeland"),   _S("Path of the Wayland compositor to execute when starting the greeter"));
+            Entry(CompositorCommand,   QString,     _S("treeland --lockscreen"),   _S("Path of the Wayland compositor to execute when starting the greeter"));
             Entry(SessionDir,          QStringList, {_S("/usr/local/share/wayland-sessions"),
                                                      _S("/usr/share/wayland-sessions")},        _S("Comma-separated list of directories containing available Wayland sessions"));
             Entry(SessionCommand,      QString,     _S(WAYLAND_SESSION_COMMAND),                _S("Path to a script to execute when starting the desktop session"));
