@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
+#include <QStringList>
 
 #include "singlewaylandhelper.h"
 #include "MessageHandler.h"
@@ -36,8 +37,12 @@ int main(int argc, char** argv)
         QCoreApplication::exit(0);
     });
 
-    if (!helper.start(app.arguments()[1], app.arguments()[2])) {
-        qWarning() << "DDM was unable to start" << app.arguments()[1];
+    QStringList args;
+    args += app.arguments()[1].split(" ");
+    args += app.arguments()[2].split(" ");
+
+    if (!helper.start(args.takeFirst(), args.join(" "))) {
+        qWarning() << "DDM was unable to start" << app.arguments();
         return Auth::HELPER_DISPLAYSERVER_ERROR;
     }
 
