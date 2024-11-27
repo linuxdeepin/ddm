@@ -76,6 +76,10 @@ namespace DDM {
         m_singleMode = on;
     }
 
+    void Greeter::setUserActivated(bool active) {
+        m_userActivated = active;
+    }
+
     QString Greeter::displayServerCommand() const
     {
         return m_displayServerCmd;
@@ -230,7 +234,11 @@ namespace DDM {
 
             // start greeter
             m_auth->setUser(QStringLiteral("dde"));
-            m_auth->setDisplayServerCommand(m_displayServerCmd);
+            QString displayServerCmd = m_displayServerCmd;
+            if (m_singleMode) {
+                displayServerCmd += " --lockscreen";
+            }
+            m_auth->setDisplayServerCommand(displayServerCmd);
             m_auth->setGreeter(true);
             m_auth->setSession(cmd.join(QLatin1Char(' ')));
             m_auth->setSingleMode(m_singleMode);
@@ -314,6 +322,17 @@ namespace DDM {
     }
 
     void Greeter::onHelperFinished(Auth::HelperExitStatus status) {
+        if (m_singleMode) {
+            qDebug() << "Restart treeland";
+            QString displayServerCmd = m_displayServerCmd;
+            if (!m_userActivated) {
+                displayServerCmd += " --lockscreen";
+            }
+            m_auth->setDisplayServerCommand(displayServerCmd);
+            m_auth->start();
+            return;
+        }
+
         // reset flag
         m_started = false;
 
