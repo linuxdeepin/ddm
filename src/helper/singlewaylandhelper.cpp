@@ -10,8 +10,6 @@
 
 SingleWaylandHelper::SingleWaylandHelper(QObject *parent)
     : QObject(parent)
-    , m_wCompositorCrashCount(0)
-    , m_maxCrashCountLimit(3)
 {}
 
 bool SingleWaylandHelper::start(const QString &compositor, const QString &cmd)
@@ -21,6 +19,9 @@ bool SingleWaylandHelper::start(const QString &compositor, const QString &cmd)
     m_process = new QProcess(this);
     m_process->setProgram(compositor);
     m_process->setArguments(args);
+    m_process->setStandardOutputFile(QProcess::nullDevice());
+    m_process->setStandardErrorFile(QProcess::nullDevice());
+    m_process->setStandardInputFile(QProcess::nullDevice());
     m_process->setProcessEnvironment([]{
         auto env = QProcessEnvironment::systemEnvironment();
         env.insert("LIBSEAT_BACKEND", "seatd");
@@ -31,34 +32,8 @@ bool SingleWaylandHelper::start(const QString &compositor, const QString &cmd)
         return env;
     }());
 
-    connect(m_process, &QProcess::readyReadStandardError, this, [this] {
-        qWarning() << m_process->readAllStandardError();
-    });
-    connect(m_process, &QProcess::readyReadStandardOutput, this, [this] {
-        qInfo() << m_process->readAllStandardOutput();
-    });
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            m_process, [this](int exitCode, QProcess::ExitStatus exitStatus) {
-        qDebug() << "kwin_wayland exit with exitCode:" << exitCode << exitStatus;
-        if (exitCode == 0) {
-            qApp->quit();
-            return;
-        } else if (exitCode == 133) {
-            m_wCompositorCrashCount = 0;
-        } else {
-            m_wCompositorCrashCount++;
-        }
-
-        if (m_wCompositorCrashCount > m_maxCrashCountLimit) {
-            qApp->quit();
-            return;
-        }
-
-        qWarning() << "WAYLAND Restart count: " << QByteArray::number(m_wCompositorCrashCount);
-
-        // restart
-        m_process->start();
-    });
+            qApp, &QCoreApplication::quit);
 
     m_process->start();
     if (!m_process->waitForStarted(10000)) {

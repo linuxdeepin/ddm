@@ -208,6 +208,10 @@ namespace DDM {
     void Display::switchToUser(const QString &user) {
         auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
         server->activateUser(user);
+
+        if (user == "dde") {
+            m_greeter->setUserActivated(false);
+        }
     }
 
     bool Display::start() {
@@ -554,6 +558,8 @@ namespace DDM {
 
         Q_ASSERT(auth && auth->identifyOnly() == identifyOnly);
 
+        m_greeter->setUserActivated(success);
+
         if (success) {
             if (!m_reuseSessionId.isNull()) {
                 OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
@@ -635,6 +641,9 @@ namespace DDM {
                 auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
                 // TODO: switch to greeter
                 server->activateUser("dde");
+
+                // TODO: only current user logout will reset greeter state
+                m_greeter->setUserActivated(false);
                 return;
             }
         }

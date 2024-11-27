@@ -41,6 +41,7 @@ namespace DDM {
         void setSocket(const QString &socket);
         void setTheme(const QString &theme);
         void setSingleMode(bool on = true);
+        void setUserActivated(bool active);
 
         QString displayServerCommand() const;
         void setDisplayServerCommand(const QString &cmd);
@@ -69,6 +70,7 @@ namespace DDM {
     private:
         bool m_started { false };
         bool m_singleMode { false };
+        bool m_userActivated { false };
         int m_maxRetry{ 3 };
 
         Display * const m_display { nullptr };
