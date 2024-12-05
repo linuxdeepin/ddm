@@ -217,7 +217,7 @@ namespace DDM {
             // when this is true we'll take control of the tty
             bool takeControl = false;
 
-            if (vtFd > 0 && !m_helperApp->isSingleMode()) {
+            if (vtFd > 0) {
                 dup2(vtFd, STDIN_FILENO);
                 ::close(vtFd);
                 takeControl = true;
@@ -243,16 +243,20 @@ namespace DDM {
                 }
             }
 
-            if (m_helperApp->isSingleMode() && m_helperApp->isGreeter()) {
-                // FIXME: if jumpToVt vt_auto is false, when switching tty, greeter sesion will died.
-                VirtualTerminal::jumpToVt(vtNumber, true);
+            VirtualTerminal::jumpToVt(vtNumber, m_helperApp->isGreeter());
 
-                // disable physical tty standard output in greeter work tty.
-                struct termios tios;
-                tcgetattr(STDOUT_FILENO, &tios);
-                tios.c_oflag &= ~OPOST;
-                tcsetattr(STDOUT_FILENO, TCSANOW, &tios);
-            }
+            // skip Ctrl-C SIGINT
+            struct termios oldt, newt;
+            tcgetattr(STDIN_FILENO, &oldt);
+            newt = oldt;
+            newt.c_lflag &= ~ISIG;
+            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+            // disable physical tty standard output in greeter work tty.
+            struct termios tios;
+            tcgetattr(STDOUT_FILENO, &tios);
+            tios.c_oflag &= ~OPOST;
+            tcsetattr(STDOUT_FILENO, TCSANOW, &tios);
         }
 
 #ifdef Q_OS_LINUX

@@ -592,7 +592,7 @@ namespace DDM {
                 }
             }
 
-            VirtualTerminal::jumpToVt(auth->tty(), true);
+            VirtualTerminal::jumpToVt(auth->tty(), false);
         }
         m_socket = nullptr;
     }
