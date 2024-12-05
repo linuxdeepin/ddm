@@ -30,6 +30,8 @@ install(FILES
         WORLD_READ WORLD_EXECUTE
 )
 
+add_subdirectory(systemd)
+
 if(BUILD_MAN_PAGES)
     add_subdirectory(man)
 endif()
