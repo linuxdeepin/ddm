@@ -27,29 +27,12 @@ SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServe
     , m_socketServer(socketServer)
     , m_helper(new QProcess(this))
 {
-    QProcess *m_seatd = new QProcess(this);
-    m_seatd->setProgram("seatd");
-    m_seatd->setArguments({"-u", "dde", "-g", "dde", "-l", "debug"});
-    m_seatd->setProcessEnvironment([] {
-        auto env = QProcessEnvironment::systemEnvironment();
-        env.insert("SEATD_VTBOUND", "0");
-        return env;
-    }());
-    connect(m_seatd, &QProcess::readyReadStandardOutput, this, [m_seatd] {
-        qInfo() << m_seatd->readAllStandardOutput();
-    });
-    connect(m_seatd, &QProcess::readyReadStandardError, this, [m_seatd] {
-        qWarning() << m_seatd->readAllStandardError();
-    });
-
     connect(m_helper, &QProcess::readyReadStandardOutput, this, [this] {
         qInfo() << m_helper->readAllStandardOutput();
     });
     connect(m_helper, &QProcess::readyReadStandardError, this, [this] {
         qWarning() << m_helper->readAllStandardError();
     });
-
-    m_seatd->start();
 
     QString socketName = QStringLiteral("treeland-helper-%1").arg(generateName(6));
 
