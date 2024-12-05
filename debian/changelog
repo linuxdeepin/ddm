@@ -1,3 +1,9 @@
+ddm (0.1.6) unstable; urgency=medium
+
+  * allow user take tty control
+
+ -- Dingyuan Zhang <zhangdingyuan@uniontech.com>  Thu, 05 Dec 2024 20:58:00 +0800
+
 ddm (0.1.5) unstable; urgency=medium
 
   * active user tty
