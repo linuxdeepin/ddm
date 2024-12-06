@@ -235,7 +235,7 @@ namespace DDM {
             }
 
             // take control of the tty
-            if (takeControl) {
+            if (takeControl && m_helperApp->isGreeter()) {
                 if (ioctl(STDIN_FILENO, TIOCSCTTY, 0) < 0) {
                     const auto error = strerror(errno);
                     qCritical().nospace() << "Failed to take control of " << ttyString << " (" << QFileInfo(ttyString).owner() << "): " << error;
@@ -243,7 +243,9 @@ namespace DDM {
                 }
             }
 
-            VirtualTerminal::jumpToVt(vtNumber, m_helperApp->isGreeter());
+            if (m_helperApp->isGreeter()) {
+                VirtualTerminal::jumpToVt(vtNumber, true);
+            }
 
             // skip Ctrl-C SIGINT
             struct termios oldt, newt;

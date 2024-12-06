@@ -134,6 +134,7 @@ namespace DDM {
         }
 
         connect(new SignalHandler(this), &SignalHandler::sigtermReceived, this, [this] {
+            qDebug() << "sigterm received.";
             if (m_backend->isGreeter()) {
                 qApp->quit();
             }
