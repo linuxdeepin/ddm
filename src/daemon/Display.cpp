@@ -206,11 +206,41 @@ namespace DDM {
     }
 
     void Display::switchToUser(const QString &user) {
+        if (user == "dde") {
+            m_greeter->setUserActivated(false);
+        }
+
+        Auth *auth = nullptr;
+
+        for (auto *a : m_auths) {
+            if (a->user() == user) {
+                auth = a;
+                break;
+            }
+        }
+
+        if (!auth) {
+            return;
+        }
+
         auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
         server->activateUser(user);
 
-        if (user == "dde") {
-            m_greeter->setUserActivated(false);
+        if (Logind::isAvailable()) {
+            OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
+            auto reply = manager.ListSessions();
+            reply.waitForFinished();
+
+            const auto info = reply.value();
+            for(const SessionInfo &s : reply.value()) {
+                if (s.userName == user) {
+                    OrgFreedesktopLogin1SessionInterface session(Logind::serviceName(), s.sessionPath.path(), QDBusConnection::systemBus());
+                    if (session.state() == "online" && session.vTNr() == static_cast<uint>(auth->tty())) {
+                        session.Activate();
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -592,7 +622,7 @@ namespace DDM {
                 }
             }
 
-            VirtualTerminal::jumpToVt(auth->tty(), false);
+            switchToUser(auth->user());
         }
         m_socket = nullptr;
     }
@@ -669,8 +699,7 @@ namespace DDM {
         qDebug() << "Session started" << success;
         Auth* auth = qobject_cast<Auth*>(sender());
         if (m_displayServerType == SingleCompositerServerType) {
-            auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
-            server->activateUser(auth->user());
+            switchToUser(auth->user());
         }
 
         if (success && m_displayServerType != SingleCompositerServerType) {
