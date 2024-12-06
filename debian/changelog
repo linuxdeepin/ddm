@@ -1,3 +1,9 @@
+ddm (0.1.7) unstable; urgency=medium
+
+  * fix black screen when user activate session
+
+ -- Dingyuan Zhang <zhangdingyuan@uniontech.com>  Fri, 06 Dec 2024 13:52:00 +0800
+
 ddm (0.1.6) unstable; urgency=medium
 
   * allow user take tty control
