@@ -1,3 +1,9 @@
+ddm (0.1.8) unstable; urgency=medium
+
+  * limit treeland restart to 3
+
+ -- Dingyuan Zhang <zhangdingyuan@uniontech.com>  Fri, 13 Dec 2024 10:44:00 +0800
+
 ddm (0.1.7) unstable; urgency=medium
 
   * fix black screen when user activate session
