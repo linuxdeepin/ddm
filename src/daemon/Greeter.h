@@ -25,6 +25,7 @@
 #include "Auth.h"
 
 class QProcess;
+class QTimer;
 
 namespace DDM {
     class Display;
@@ -66,11 +67,13 @@ namespace DDM {
         void ttyFailed();
         void failed();
         void displayServerFailed();
+        void greeterStarted();
 
     private:
         bool m_started { false };
         bool m_singleMode { false };
         bool m_userActivated { false };
+        int m_currentRetry { 0 };
         int m_maxRetry{ 3 };
 
         Display * const m_display { nullptr };
@@ -82,6 +85,7 @@ namespace DDM {
 
         Auth *m_auth { nullptr };
         QProcess *m_process { nullptr };
+        QTimer *m_tryTimer { nullptr };
 
         static void insertEnvironmentList(QStringList names, QProcessEnvironment sourceEnv, QProcessEnvironment &targetEnv);
     };

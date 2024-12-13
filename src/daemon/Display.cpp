@@ -169,6 +169,11 @@ namespace DDM {
             stop();
         });
         connect(m_greeter, &Greeter::displayServerFailed, this, &Display::displayServerFailed);
+        connect(m_greeter, &Greeter::greeterStarted, this, [this] {
+            if (m_currentAuth) {
+                switchToUser(m_currentAuth->user());
+            }
+        });
     }
 
     Display::~Display() {
@@ -588,6 +593,7 @@ namespace DDM {
 
         Q_ASSERT(auth && auth->identifyOnly() == identifyOnly);
 
+        m_currentAuth = auth;
         m_greeter->setUserActivated(success);
 
         if (success) {
@@ -662,6 +668,10 @@ namespace DDM {
         // we want to avoid greeter from restarting when an authentication
         // error happens (in this case we want to show the message from the
         // greeter
+
+        if (m_currentAuth == auth) {
+            m_currentAuth = nullptr;
+        }
 
         m_auths.removeOne(auth);
         auth->deleteLater();
