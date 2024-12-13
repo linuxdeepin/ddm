@@ -109,6 +109,7 @@ namespace DDM {
         QString m_reuseSessionId;
 
         QVector<Auth*> m_auths;
+        Auth* m_currentAuth { nullptr };
         DisplayServer *m_displayServer { nullptr };
         Seat *m_seat { nullptr };
         SocketServer *m_socketServer { nullptr };

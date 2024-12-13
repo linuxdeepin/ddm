@@ -32,6 +32,7 @@
 #include "WaylandDisplayServer.h"
 #include "PowerManager.h"
 
+#include <QTimer>
 #include <QtCore/QDebug>
 #include <QtCore/QProcess>
 #include <VirtualTerminal.h>
@@ -40,9 +41,15 @@ namespace DDM {
     Greeter::Greeter(Display *parent)
         : QObject(parent)
         , m_display(parent)
+        , m_tryTimer(new QTimer(this))
     {
         m_metadata = new ThemeMetadata(QString());
         m_themeConfig = new ThemeConfig(QString());
+
+        connect(m_tryTimer, &QTimer::timeout, this, &Greeter::greeterStarted);
+
+        m_tryTimer->setSingleShot(true);
+        m_tryTimer->setInterval(500);
     }
 
     Greeter::~Greeter() {
@@ -243,6 +250,8 @@ namespace DDM {
             m_auth->setSession(cmd.join(QLatin1Char(' ')));
             m_auth->setSingleMode(m_singleMode);
             m_auth->start();
+
+            m_tryTimer->start();
         }
 
         // return success
@@ -322,7 +331,8 @@ namespace DDM {
     }
 
     void Greeter::onHelperFinished(Auth::HelperExitStatus status) {
-        if (m_singleMode) {
+        if (m_singleMode && m_currentRetry <= m_maxRetry) {
+            m_currentRetry += 1;
             qDebug() << "Restart treeland";
             QString displayServerCmd = m_displayServerCmd;
             if (!m_userActivated) {
@@ -330,6 +340,12 @@ namespace DDM {
             }
             m_auth->setDisplayServerCommand(displayServerCmd);
             m_auth->start();
+
+            if (m_tryTimer->isActive()) {
+                m_tryTimer->stop();
+            }
+
+            m_tryTimer->start();
             return;
         }
 
