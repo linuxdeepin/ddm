@@ -7,6 +7,11 @@ install(FILES
 )
 
 install(FILES
+    "org.deepin.DisplayManager.conf"
+    DESTINATION "${DBUS_CONFIG_DIR}"
+)
+
+install(FILES
     "faces/root.face.icon.png"
     DESTINATION "${DATA_INSTALL_DIR}/faces"
     RENAME "root.face.icon"

@@ -35,6 +35,7 @@
 #include <QtCore/QDebug>
 #include <QtNetwork/QLocalSocket>
 
+#include <fcntl.h>
 #include <iostream>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -133,7 +134,7 @@ namespace DDM {
             connect(m_session, &UserSession::finished, this, &HelperApp::sessionFinished);
         }
 
-        connect(new SignalHandler(this), &SignalHandler::sigtermReceived, this, [this] {
+        connect(new SignalHandler(this), &SignalHandler::sigtermReceived, this, [] {
             qDebug() << "sigterm received.";
             qApp->quit();
         });

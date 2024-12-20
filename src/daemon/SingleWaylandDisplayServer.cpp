@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
 #include "SingleWaylandDisplayServer.h"
+#include "DaemonApp.h"
+#include "DisplayManager.h"
 #include "Messages.h"
 #include "SocketServer.h"
 #include "Constants.h"
@@ -9,6 +11,8 @@
 #include "Utils.h"
 #include "Display.h"
 
+#include <QDBusInterface>
+#include <QDBusConnection>
 #include <QStandardPaths>
 #include <QChar>
 #include <QLocalSocket>
@@ -23,22 +27,9 @@
 using namespace DDM;
 
 SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServer, Display *parent)
-    : DDM::WaylandDisplayServer(parent)
+    : DDM::DisplayServer(parent)
     , m_socketServer(socketServer)
-    , m_helper(new QProcess(this))
 {
-    connect(m_helper, &QProcess::readyReadStandardOutput, this, [this] {
-        qInfo() << m_helper->readAllStandardOutput();
-    });
-    connect(m_helper, &QProcess::readyReadStandardError, this, [this] {
-        qWarning() << m_helper->readAllStandardError();
-    });
-
-    QString socketName = QStringLiteral("treeland-helper-%1").arg(generateName(6));
-
-    // log message
-    qDebug() << "Socket server started.";
-
     connect(m_socketServer, &SocketServer::connected, this, [this, parent](QLocalSocket *socket) {
         m_greeterSockets << socket;
     });
@@ -50,6 +41,62 @@ SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServe
     connect(m_socketServer, &SocketServer::requestActivateUser, this, [this]([[maybe_unused]] QLocalSocket *socket, const QString &user){
         activateUser(user);
     });
+}
+
+SingleWaylandDisplayServer::~SingleWaylandDisplayServer() {
+    stop();
+}
+
+QString SingleWaylandDisplayServer::sessionType() const
+{
+    return QStringLiteral("wayland");
+}
+
+void SingleWaylandDisplayServer::setDisplayName(const QString &displayName)
+{
+    m_display = displayName;
+}
+
+bool SingleWaylandDisplayServer::start()
+{
+    // Check flag
+    if (m_started)
+        return false;
+
+    // Start treeland service
+    QDBusInterface systemd("org.freedesktop.systemd1", "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", QDBusConnection::systemBus());
+    systemd.call("StartUnit", "treeland.service", "replace");
+
+    // TODO: check treeland service
+
+    // Set flag
+    m_started = true;
+    emit started();
+
+    return true;
+}
+
+void SingleWaylandDisplayServer::stop()
+{
+    // Check flag
+    if (!m_started)
+        return;
+
+    // Stop treeland service
+    QDBusInterface systemd("org.freedesktop.systemd1", "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", QDBusConnection::systemBus());
+    systemd.call("StopUnit", "treeland.service", "replace");
+
+    // Reset flag
+    m_started = false;
+    emit stopped();
+}
+
+void SingleWaylandDisplayServer::finished()
+{
+}
+
+void SingleWaylandDisplayServer::setupDisplay()
+{
 }
 
 void SingleWaylandDisplayServer::activateUser(const QString &user) {

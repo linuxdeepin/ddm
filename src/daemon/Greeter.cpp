@@ -249,6 +249,12 @@ namespace DDM {
             m_auth->setGreeter(true);
             m_auth->setSession(cmd.join(QLatin1Char(' ')));
             m_auth->setSingleMode(m_singleMode);
+
+            // TODO: single compositer mode not need greeter
+            if (m_singleMode) {
+                return true;
+            }
+
             m_auth->start();
 
             m_tryTimer->start();

@@ -24,6 +24,7 @@
 
 #include <QDBusObjectPath>
 #include <QList>
+#include <QDBusUnixFileDescriptor>
 
 namespace DDM {
     class DisplayManagerSeat;
@@ -41,6 +42,9 @@ namespace DDM {
         Q_PROPERTY(QList<QDBusObjectPath> Seats READ Seats CONSTANT)
         Q_PROPERTY(QList<QDBusObjectPath> Sessions READ Sessions CONSTANT)
         Q_PROPERTY(QDBusObjectPath LastSession READ LastSession NOTIFY LastSessionChanged CONSTANT)
+        Q_PROPERTY(QString AuthInfo READ AuthInfo NOTIFY AuthInfoChanged)
+        Q_PROPERTY(QString LastActivatedUser READ LastActivatedUser NOTIFY LastActivatedUserChanged)
+
     public:
         DisplayManager(QObject *parent = 0);
 
@@ -53,12 +57,17 @@ namespace DDM {
             return m_lastSession;
         }
 
+        QString AuthInfo() const;
+        QString LastActivatedUser() const;
+
     public slots:
         void AddSeat(const QString &name);
         void RemoveSeat(const QString &name);
         void AddSession(const QString &name, const QString &seat, const QString &user);
         void RemoveSession(const QString &name);
         void setLastSession(const QString &session);
+        void setAuthInfo(const QString &authSocket);
+        void setLastActivatedUser(const QString &lastActivatedUser);
 
     signals:
         void SeatAdded(ObjectPath seat);
@@ -66,11 +75,15 @@ namespace DDM {
         void SessionAdded(ObjectPath session);
         void SessionRemoved(ObjectPath session);
         void LastSessionChanged(ObjectPath session);
+        void AuthInfoChanged();
+        void LastActivatedUserChanged();
 
     private:
         QList<DisplayManagerSeat *> m_seats;
         QList<DisplayManagerSession *> m_sessions;
         QDBusObjectPath m_lastSession;
+        QString m_authSocket;
+        QString m_lastActivatedUser;
     };
 
     /***************************************************************************
