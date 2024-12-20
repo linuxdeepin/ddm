@@ -309,6 +309,9 @@ namespace DDM {
         // start socket server
         m_socketServer->start(m_displayServer->display());
 
+        // Update dbus info
+        DaemonApp::instance()->displayManager()->setAuthInfo(m_socketServer->socketAddress());
+
         if (!daemonApp->testing()) {
             // change the owner and group of the socket to avoid permission denied errors
             struct passwd *pw = getpwnam("dde");
@@ -595,6 +598,7 @@ namespace DDM {
 
         m_currentAuth = auth;
         m_greeter->setUserActivated(success);
+        DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
 
         if (success) {
             if (!m_reuseSessionId.isNull()) {
@@ -671,6 +675,7 @@ namespace DDM {
 
         if (m_currentAuth == auth) {
             m_currentAuth = nullptr;
+            DaemonApp::instance()->displayManager()->setLastActivatedUser("");
         }
 
         m_auths.removeOne(auth);

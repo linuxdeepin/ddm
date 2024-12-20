@@ -28,6 +28,7 @@
 #include "VirtualTerminal.h"
 #include "XAuth.h"
 
+#include <linux/kd.h>
 #include <functional>
 #include <iostream>
 #include <sys/types.h>
@@ -232,33 +233,23 @@ namespace DDM {
                 qCritical("Failed to set pid %lld as leader of the new session and process group: %s",
                           QCoreApplication::applicationPid(), strerror(errno));
                 _exit(Auth::HELPER_OTHER_ERROR);
+
             }
 
             // take control of the tty
-            if (takeControl && m_helperApp->isGreeter()) {
+            if (takeControl) {
                 if (ioctl(STDIN_FILENO, TIOCSCTTY, 0) < 0) {
                     const auto error = strerror(errno);
                     qCritical().nospace() << "Failed to take control of " << ttyString << " (" << QFileInfo(ttyString).owner() << "): " << error;
                     _exit(Auth::HELPER_TTY_ERROR);
                 }
+                if (ioctl(STDIN_FILENO, KDSKBMODE, K_OFF) == -1) {
+                    qCritical().nospace() << "Failed to set keyboard mode to K_OFF";
+                    _exit(Auth::HELPER_TTY_ERROR);
+                }
             }
 
-            if (m_helperApp->isGreeter()) {
-                VirtualTerminal::jumpToVt(vtNumber, true);
-            }
-
-            // skip Ctrl-C SIGINT
-            struct termios oldt, newt;
-            tcgetattr(STDIN_FILENO, &oldt);
-            newt = oldt;
-            newt.c_lflag &= ~ISIG;
-            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-
-            // disable physical tty standard output in greeter work tty.
-            struct termios tios;
-            tcgetattr(STDOUT_FILENO, &tios);
-            tios.c_oflag &= ~OPOST;
-            tcsetattr(STDOUT_FILENO, TCSANOW, &tios);
+            VirtualTerminal::jumpToVt(vtNumber, !waylandUserSession);
         }
 
 #ifdef Q_OS_LINUX

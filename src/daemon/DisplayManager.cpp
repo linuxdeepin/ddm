@@ -22,6 +22,7 @@
 #include "DaemonApp.h"
 #include "SeatManager.h"
 
+#include "dbus_ddm_displaymanager.h"
 #include "displaymanageradaptor.h"
 #include "seatadaptor.h"
 #include "sessionadaptor.h"
@@ -35,11 +36,15 @@ namespace DDM {
     DisplayManager::DisplayManager(QObject *parent) : QObject(parent) {
         // create adaptor
         new DisplayManagerAdaptor(this);
+        new DDMDisplayManagerAdaptor(this);
 
         // register object
         QDBusConnection connection = (daemonApp->testing()) ? QDBusConnection::sessionBus() : QDBusConnection::systemBus();
         connection.registerService(DISPLAYMANAGER_SERVICE);
         connection.registerObject(DISPLAYMANAGER_PATH, this);
+
+        connection.registerService("org.deepin.DisplayManager");
+        connection.registerObject("/org/deepin/DisplayManager", this);
     }
 
     QString DisplayManager::seatPath(const QString &seatName) {
@@ -67,6 +72,34 @@ namespace DDM {
                 sessions << ObjectPath(session->Path());
 
         return sessions;
+    }
+
+    QString DisplayManager::AuthInfo() const {
+        return m_authSocket;
+    }
+
+    void DisplayManager::setAuthInfo(const QString &authSocket) {
+        if (m_authSocket == authSocket) {
+            return;
+        }
+
+        m_authSocket = authSocket;
+
+        Q_EMIT AuthInfoChanged();
+    }
+
+    QString DisplayManager::LastActivatedUser() const {
+        return m_lastActivatedUser;
+    }
+
+    void DisplayManager::setLastActivatedUser(const QString &lastActivatedUser) {
+        if (m_lastActivatedUser == lastActivatedUser) {
+            return;
+        }
+
+        m_lastActivatedUser = lastActivatedUser;
+
+        Q_EMIT LastActivatedUserChanged();
     }
 
     void DisplayManager::AddSeat(const QString &name) {
