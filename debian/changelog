@@ -1,3 +1,9 @@
+ddm (0.1.9) unstable; urgency=medium
+
+  * move treeland to systemd service
+
+ -- Dingyuan Zhang <zhangdingyuan@uniontech.com>  Fri, 20 Dec 2024 15:48:00 +0800
+
 ddm (0.1.8) unstable; urgency=medium
 
   * limit treeland restart to 3
