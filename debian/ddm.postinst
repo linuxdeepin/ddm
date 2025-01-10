@@ -21,6 +21,12 @@ if ! getent passwd dde >/dev/null; then
     usermod -s "/bin/false"                     dde
 fi
 
+# ensure dde is in dde video render groups
+# required for upgrading from v23
+for group in dde video render; do
+    usermod -a -G $group dde
+done
+
 if [ ! -e /var/lib/ddm ]; then
     # If dde was purged while running, the home dir gets removed but the user
     # remains (as deluser refuses to delete a user that's in use).
