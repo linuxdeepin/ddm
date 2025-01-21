@@ -1,3 +1,9 @@
+ddm (0.1.10) unstable; urgency=medium
+
+  * fix dde system user not in video group
+
+ -- Dingyuan Zhang <zhangdingyuan@uniontech.com>  Thu, 21 Jan 2025 11:46:00 +0800
+
 ddm (0.1.9) unstable; urgency=medium
 
   * move treeland to systemd service
