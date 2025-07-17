@@ -7,8 +7,8 @@ PartOf=graphical.target
 StartLimitIntervalSec=30
 StartLimitBurst=2
 
-Requires=seatd.service
-Before=seatd.service
+Requires=seatd-dde.service
+Before=seatd-dde.service
 
 [Service]
 ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/ddm
