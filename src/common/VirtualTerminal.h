@@ -25,9 +25,12 @@
 namespace DDM {
     namespace VirtualTerminal {
         QString path(int vt);
+        int getVtActive(int fd);
+        bool handleVtSwitches(int fd);
         int currentVt();
         int setUpNewVt();
         void jumpToVt(int vt, bool vt_auto);
+        void setVtSignalHandler(std::function<void()> onAcquireDisplay, std::function<void()> onReleaseDisplay);
     }
 }
 

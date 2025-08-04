@@ -138,6 +138,8 @@ Files:
   src/daemon/SeatManager.h
   src/daemon/SocketServer.cpp
   src/daemon/SocketServer.h
+  src/daemon/TreelandConnector.cpp
+  src/daemon/TreelandConnector.h
   src/daemon/Utils.h
   src/daemon/WaylandDisplayServer.cpp
   src/daemon/WaylandDisplayServer.h

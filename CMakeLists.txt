@@ -76,6 +76,9 @@ find_package(XCB REQUIRED)
 # XKB
 find_package(XKB REQUIRED)
 
+# TreelandProtocols
+find_package(TreelandProtocols REQUIRED)
+
 find_package(Qt6 CONFIG REQUIRED Core DBus Gui Qml Quick QuickControls2 LinguistTools Test QuickTest)
 qt_standard_project_setup(REQUIRES 6.6)
 

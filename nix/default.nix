@@ -11,6 +11,7 @@
 , pixman
 , pam
 , libxcrypt
+, treeland-protocols
 }:
 
 stdenv.mkDerivation (finalAttrs: {
@@ -51,6 +52,7 @@ stdenv.mkDerivation (finalAttrs: {
     pixman
     pam
     libxcrypt
+    treeland-protocols
   ];
 
    cmakeFlags = [
