@@ -28,6 +28,8 @@ namespace DDM {
         int currentVt();
         int setUpNewVt();
         void jumpToVt(int vt, bool vt_auto);
+        void acquireVt(int vt);
+        void switchToVt(int vt);
     }
 }
 

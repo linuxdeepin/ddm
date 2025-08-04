@@ -59,11 +59,14 @@ namespace DDM {
 
         QString AuthInfo() const;
         QString LastActivatedUser() const;
+        QString VTUser(uint vtnr);
+        void AcquireVT(uint vtnr);
+        void SwitchToVT(uint vtnr);
 
     public slots:
         void AddSeat(const QString &name);
         void RemoveSeat(const QString &name);
-        void AddSession(const QString &name, const QString &seat, const QString &user);
+        void AddSession(const QString &name, const QString &seat, const QString &user, const uint &vtnr);
         void RemoveSession(const QString &name);
         void setLastSession(const QString &session);
         void setAuthInfo(const QString &authSocket);
@@ -124,12 +127,13 @@ namespace DDM {
         Q_PROPERTY(QDBusObjectPath Seat READ SeatPath)
         Q_PROPERTY(QString UserName READ User)
     public:
-        DisplayManagerSession(const QString &name, const QString &seat, const QString &user, QObject *parent = 0);
+        DisplayManagerSession(const QString &name, const QString &seat, const QString &user, const uint &vtnr, QObject *parent = 0);
 
         const QString &Name() const;
         const QString &Path() const;
         const QString &Seat() const;
         const QString &User() const;
+        const uint &VTNr() const;
 
         void Lock();
 
@@ -140,6 +144,7 @@ namespace DDM {
         QString m_path;
         QString m_seat;
         QString m_user;
+        uint m_vtnr;
     };
 }
 

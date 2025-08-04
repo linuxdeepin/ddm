@@ -19,6 +19,9 @@
 
 #include <QDebug>
 #include <QString>
+#include <QDBusInterface>
+#include <QDBusConnection>
+#include <QDBusReply>
 
 #include "VirtualTerminal.h"
 
@@ -78,7 +81,32 @@ namespace DDM {
         static void onAcquireDisplay([[maybe_unused]] int signal) {
             int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
             ioctl(fd, VT_RELDISP, VT_ACKACQ);
+            int vt = getVtActive(fd);
             close(fd);
+            QDBusInterface ddm("org.deepin.DisplayManager",
+                               "/org/deepin/DisplayManager",
+                               "org.deepin.DisplayManager",
+                               QDBusConnection::systemBus());
+            if (!ddm.isValid()) {
+                qWarning("DDM D-Bus interface is invalid");
+                return;
+            }
+            QDBusReply<QString> reply = ddm.call("VTUser", static_cast<uint>(vt));
+            if (!reply.isValid()) {
+                qWarning("VTUser D-Bus result is invalid");
+                return;
+            }
+            QString user = reply.value();
+            if (!user.isEmpty()) {
+                QDBusInterface treeland("org.deepin.Compositor1",
+                                        "/org/deepin/Compositor1",
+                                        "org.deepin.Compositor1",
+                                        QDBusConnection::systemBus());
+                if (treeland.isValid()) {
+                    qDebug("Activate treeland session");
+                    treeland.call("ActivateSession");
+                }
+            }
         }
 
         static void onReleaseDisplay([[maybe_unused]] int signal) {
@@ -253,6 +281,24 @@ out:
             close(activeVtFd);
             if (vtFd != -1)
                 close(vtFd);
+        }
+
+        void acquireVt(int vt) {
+            int vtFd = open(qPrintable(path(vt)), O_RDWR | O_NOCTTY);
+            handleVtSwitches(vtFd);
+            close(vtFd);
+        }
+
+        void switchToVt(int vt) {
+            int activeVtFd = open(defaultVtPath, O_RDWR | O_NOCTTY);
+            handleVtSwitches(activeVtFd);
+            close(activeVtFd);
+            int fd = open(qPrintable(path(vt)), O_RDWR | O_NOCTTY);
+            if (ioctl(fd, VT_ACTIVATE, vt) < 0) {
+                qWarning("Failed to switch to VT %d: %s", vt, strerror(errno));
+                return;
+            }
+            close(fd);
         }
     }
 }
