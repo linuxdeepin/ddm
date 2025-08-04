@@ -25,6 +25,7 @@
 #include "PowerManager.h"
 #include "SeatManager.h"
 #include "SignalHandler.h"
+#include "TreelandConnector.h"
 
 #include "MessageHandler.h"
 
@@ -85,6 +86,8 @@ namespace DDM {
         // quit when SIGINT, SIGTERM received
         connect(m_signalHandler, &SignalHandler::sigintReceived, this, &DaemonApp::quit);
         connect(m_signalHandler, &SignalHandler::sigtermReceived, this, &DaemonApp::quit);
+
+        m_treelandConnector = new TreelandConnector();
         // log message
         qDebug() << "Starting...";
 
@@ -115,6 +118,10 @@ namespace DDM {
 
     SignalHandler *DaemonApp::signalHandler() const {
         return m_signalHandler;
+    }
+
+    TreelandConnector *DaemonApp::treelandConnector() const {
+        return m_treelandConnector;
     }
 
     int DaemonApp::newSessionId() {

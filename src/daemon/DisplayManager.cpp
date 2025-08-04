@@ -26,6 +26,7 @@
 #include "displaymanageradaptor.h"
 #include "seatadaptor.h"
 #include "sessionadaptor.h"
+#include "VirtualTerminal.h"
 
 const QString DISPLAYMANAGER_SERVICE = QStringLiteral("org.freedesktop.DisplayManager");
 const QString DISPLAYMANAGER_PATH = QStringLiteral("/org/freedesktop/DisplayManager");
@@ -132,9 +133,9 @@ namespace DDM {
         }
     }
 
-    void DisplayManager::AddSession(const QString &name, const QString &seat, const QString &user) {
+    void DisplayManager::AddSession(const QString &name, const QString &seat, const QString &user, const int &vtnr) {
         // create session object
-        DisplayManagerSession *session = new DisplayManagerSession(name, seat, user, this);
+        DisplayManagerSession *session = new DisplayManagerSession(name, seat, user, vtnr, this);
 
         // add to the list
         m_sessions << session;
@@ -178,6 +179,14 @@ namespace DDM {
         }
     }
 
+    const QString DisplayManager::findUserByVt(int vtnr) {
+        for (auto session : m_sessions) {
+            if (vtnr == session->VTNr())
+                return session->User();
+        }
+        return QString();
+    }
+
     DisplayManagerSeat::DisplayManagerSeat(const QString &name, QObject *parent)
         : QObject(parent), m_name(name), m_path(DISPLAYMANAGER_SEAT_PATH + name.mid(4)) {
         // create adaptor
@@ -217,8 +226,8 @@ namespace DDM {
        return daemonApp->displayManager()->Sessions(this);
     }
 
-    DisplayManagerSession::DisplayManagerSession(const QString &name, const QString &seat, const QString &user, QObject *parent)
-        : QObject(parent), m_name(name), m_path(DISPLAYMANAGER_SESSION_PATH + name.mid(7)), m_seat(seat), m_user(user) {
+    DisplayManagerSession::DisplayManagerSession(const QString &name, const QString &seat, const QString &user, const int &vtnr, QObject *parent)
+        : QObject(parent), m_name(name), m_path(DISPLAYMANAGER_SESSION_PATH + name.mid(7)), m_seat(seat), m_user(user), m_vtnr(vtnr) {
         // create adaptor
         new SessionAdaptor(this);
 
@@ -238,6 +247,10 @@ namespace DDM {
 
     const QString &DisplayManagerSession::Seat() const {
         return m_seat;
+    }
+
+    const int &DisplayManagerSession::VTNr() const {
+        return m_vtnr;
     }
 
     void DisplayManagerSession::Lock() {

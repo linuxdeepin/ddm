@@ -75,19 +75,30 @@ namespace DDM {
         }
 #endif
 
+        std::function<void()> onAcquireFunction = nullptr;
+        std::function<void()> onReleaseFunction = nullptr;
+
         static void onAcquireDisplay([[maybe_unused]] int signal) {
-            int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-            ioctl(fd, VT_RELDISP, VT_ACKACQ);
-            close(fd);
+            if (onAcquireFunction) {
+                onAcquireFunction();
+            } else {
+              int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
+              ioctl(fd, VT_RELDISP, VT_ACKACQ);
+              close(fd);
+            }
         }
 
         static void onReleaseDisplay([[maybe_unused]] int signal) {
-            int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-            ioctl(fd, VT_RELDISP, 1);
-            close(fd);
+            if (onReleaseFunction) {
+                onReleaseFunction();
+            } else {
+              int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
+              ioctl(fd, VT_RELDISP, 1);
+              close(fd);
+            }
         }
 
-        static bool handleVtSwitches(int fd) {
+        bool handleVtSwitches(int fd) {
             vt_mode setModeRequest { };
             bool ok = true;
 
@@ -253,6 +264,11 @@ out:
             close(activeVtFd);
             if (vtFd != -1)
                 close(vtFd);
+        }
+
+        void setVtSignalHandler(std::function<void()> onAcquireDisplay, std::function<void()> onReleaseDisplay) {
+            onAcquireFunction = onAcquireDisplay;
+            onReleaseFunction = onReleaseDisplay;
         }
     }
 }

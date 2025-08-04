@@ -24,6 +24,7 @@
 #include "Messages.h"
 #include "PowerManager.h"
 #include "SocketWriter.h"
+#include "TreelandConnector.h"
 #include "Utils.h"
 
 #include <QLocalServer>
@@ -123,6 +124,11 @@ namespace DDM {
                 case GreeterMessages::Connect: {
                     // log message
                     qDebug() << "Message received from greeter: Connect";
+
+                    // Connect wayland socket
+                    QString socketPath;
+                    input >> socketPath;
+                    daemonApp->treelandConnector()->connect(socketPath);
 
                     // send capabilities
                     SocketWriter(socket) << quint32(DaemonMessages::Capabilities) << quint32(daemonApp->powerManager()->capabilities());

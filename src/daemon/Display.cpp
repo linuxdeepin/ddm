@@ -138,6 +138,8 @@ namespace DDM {
             m_displayServer = new SingleWaylandDisplayServer(m_socketServer, this);
             m_greeter->setDisplayServerCommand(mainConfig.Single.CompositorCommand.get());
             m_greeter->setSingleMode();
+            // Record current VT as ddm user session
+            DaemonApp::instance()->displayManager()->AddSession({}, seat()->name(), "ddm", static_cast<uint>(VirtualTerminal::currentVt()));
             break;
         }
 
@@ -537,7 +539,7 @@ namespace DDM {
         // session id
         {
             const QString sessionId = QStringLiteral("Session%1").arg(daemonApp->newSessionId());
-            daemonApp->displayManager()->AddSession(sessionId, seat()->name(), user);
+            daemonApp->displayManager()->AddSession(sessionId, seat()->name(), user, auth->tty());
             env.insert(QStringLiteral("XDG_SESSION_PATH"), daemonApp->displayManager()->sessionPath(sessionId));
             auth->setSessionId(sessionId);
         }
