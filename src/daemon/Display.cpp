@@ -143,6 +143,9 @@ namespace DDM {
 
         qDebug("Using VT %d", m_terminalId);
 
+        // Record current VT as ddm user session
+        DaemonApp::instance()->displayManager()->AddSession("", seat()->name(), "ddm", static_cast<uint>(VirtualTerminal::currentVt()));
+
         // restart display after display server ended
         connect(m_displayServer, &DisplayServer::started, this, &Display::displayServerStarted);
         connect(m_displayServer, &DisplayServer::stopped, this, &Display::stop);
@@ -537,7 +540,7 @@ namespace DDM {
         // session id
         {
             const QString sessionId = QStringLiteral("Session%1").arg(daemonApp->newSessionId());
-            daemonApp->displayManager()->AddSession(sessionId, seat()->name(), user);
+            daemonApp->displayManager()->AddSession(sessionId, seat()->name(), user, auth->tty());
             env.insert(QStringLiteral("XDG_SESSION_PATH"), daemonApp->displayManager()->sessionPath(sessionId));
             auth->setSessionId(sessionId);
         }

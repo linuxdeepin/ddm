@@ -13,6 +13,16 @@
         </method>
         <signal name="LastActivatedUserChanged">
         </signal>
+        <method name="VTUser">
+            <arg type="u" name="vtnr" direction="in"></arg>
+            <arg type="s" name="Username or empty" direction="out"></arg>
+        </method>
+        <method name="AcquireVT">
+            <arg type="u" name="vtnr" direction="in"></arg>
+        </method>
+        <method name="SwitchToVT">
+            <arg type="u" name="vtnr" direction="in"></arg>
+        </method>
     </interface>
 </node>
 
