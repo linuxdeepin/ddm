@@ -21,6 +21,8 @@ public:
     void switchToUser(const QString username);
     void activateSession();
     void deactivateSession();
+    void enableRender();
+    void disableRender();
 private:
     struct wl_display *m_display { nullptr };
     QSocketNotifier *m_notifier { nullptr };
