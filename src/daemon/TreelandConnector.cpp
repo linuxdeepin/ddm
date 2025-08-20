@@ -35,19 +35,25 @@ static void onAcquireDisplay() {
     auto user = daemonApp->displayManager()->findUserByVt(vtnr);
     if (!user.isEmpty()) {
         qDebug("Activate session at VT %d for user %s", vtnr, qPrintable(user));
-        daemonApp->treelandConnector()->switchToUser(user);
         daemonApp->treelandConnector()->activateSession();
+        daemonApp->treelandConnector()->enableRender();
+        daemonApp->treelandConnector()->switchToUser(user);
     }
 }
 
 static void onReleaseDisplay() {
+    // TODO: Wayland request is asynchronous, which may leads a late execution,
+    // makes treeland still possible to draw on DRM after VT switching.
+    daemonApp->treelandConnector()->disableRender();
+
     int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
     ioctl(fd, VT_RELDISP, 1);
     close(fd);
+
     int activeVtFd = open(defaultVtPath, O_RDWR | O_NOCTTY);
     int activeVt = VirtualTerminal::getVtActive(activeVtFd);
     auto user = daemonApp->displayManager()->findUserByVt(activeVt);
-    qDebug("Next VT: %d, user: %s", activeVt, qPrintable(user));
+    qDebug("Next VT: %d, user: %s", activeVt, user.isEmpty() ? "None" : qPrintable(user));
     if (user.isEmpty()) {
         // We must switch Treeland to greeter mode before we switch back to it,
         // or it will get stuck.
@@ -58,6 +64,7 @@ static void onReleaseDisplay() {
         // ddm-helper. It uses VT signals from VirtualTerminal.h,
         // which is not what we want, so we should acquire VT control here.
         VirtualTerminal::handleVtSwitches(activeVtFd);
+        daemonApp->treelandConnector()->enableRender();
     }
     close(activeVtFd);
 }
@@ -181,6 +188,24 @@ void TreelandConnector::deactivateSession() {
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call deactivateSession");
+    }
+}
+
+void TreelandConnector::enableRender() {
+    if (isConnected()) {
+        treeland_ddm_enable_render(m_ddm);
+        wl_display_flush(m_display);
+    } else {
+        qWarning("Treeland is not connected when trying to call enableRender");
+    }
+}
+
+void TreelandConnector::disableRender() {
+    if (isConnected()) {
+        treeland_ddm_disable_render(m_ddm);
+        wl_display_flush(m_display);
+    } else {
+        qWarning("Treeland is not connected when trying to call disableRender");
     }
 }
 
