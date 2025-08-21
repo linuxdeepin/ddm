@@ -5,11 +5,22 @@ include_directories(
 
 pkg_search_module(WAYLAND REQUIRED IMPORTED_TARGET wayland-client)
 
-add_custom_target(treeland-ddm ALL
-    COMMAND
-    wayland-scanner client-header < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.h
-    COMMAND
-    wayland-scanner private-code < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.c
+# Generate treeland-ddm protocol files
+set(TREELAND_DDM_HEADER ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.h)
+set(TREELAND_DDM_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.c)
+
+add_custom_command(
+    OUTPUT ${TREELAND_DDM_HEADER}
+    COMMAND wayland-scanner client-header < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${TREELAND_DDM_HEADER}
+    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml
+    COMMENT "Generating treeland-ddm-v1.h"
+)
+
+add_custom_command(
+    OUTPUT ${TREELAND_DDM_SOURCE}
+    COMMAND wayland-scanner private-code < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${TREELAND_DDM_SOURCE}
+    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml
+    COMMENT "Generating treeland-ddm-v1.c"
 )
 
 configure_file(config.h.in config.h IMMEDIATE @ONLY)
@@ -31,7 +42,7 @@ set(DAEMON_SOURCES
     WaylandDisplayServer.h
     SingleWaylandDisplayServer.h
     SingleWaylandDisplayServer.cpp
-    treeland-ddm-v1.c
+    ${TREELAND_DDM_SOURCE}
 )
 
 qt_add_dbus_adaptor(DAEMON_SOURCES "${CMAKE_SOURCE_DIR}/data/interfaces/org.freedesktop.DisplayManager.xml"          "DisplayManager.h" DDM::DisplayManager)
