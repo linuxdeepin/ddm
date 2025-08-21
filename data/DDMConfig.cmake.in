@@ -1,5 +1,11 @@
 @PACKAGE_INIT@
 
+# DDM version information
+set(DDM_VERSION_MAJOR @DDM_VERSION_MAJOR@)
+set(DDM_VERSION_MINOR @DDM_VERSION_MINOR@)
+set(DDM_VERSION_PATCH @DDM_VERSION_PATCH@)
+set(DDM_VERSION @DDM_VERSION_STRING@)
+
 # 导入 Auth 和 Common 模块的配置文件
 include("${CMAKE_CURRENT_LIST_DIR}/AuthConfig.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/CommonConfig.cmake")

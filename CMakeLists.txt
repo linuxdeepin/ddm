@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25.0)
 
 project(DDM
-    VERSION 0.2.2
+    VERSION 0.2.0
     LANGUAGES CXX C)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -77,7 +77,7 @@ find_package(XCB REQUIRED)
 find_package(XKB REQUIRED)
 
 # TreelandProtocols
-find_package(TreelandProtocols REQUIRED)
+find_package(TreelandProtocols 0.5.0  REQUIRED)
 
 find_package(Qt6 CONFIG REQUIRED Core DBus Gui Qml Quick QuickControls2 LinguistTools Test QuickTest)
 qt_standard_project_setup(REQUIRES 6.6)
@@ -232,6 +232,8 @@ feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
 
 # CMAKE MODULE
 include(CMakePackageConfigHelpers)
+
+# Configure main config file
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/data/DDMConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfig.cmake"
@@ -239,13 +241,22 @@ configure_package_config_file(
     PATH_VARS CMAKE_INSTALL_PREFIX
 )
 
+# Configure version file
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfigVersion.cmake"
+    VERSION ${DDM_VERSION_STRING}
+    COMPATIBILITY SameMajorVersion
+)
+
+# Configure Auth config file
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/data/AuthConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/data/AuthConfig.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}cmake/DDM
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DDM
     PATH_VARS CMAKE_INSTALL_PREFIX
 )
 
+# Configure Common config file
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/data/CommonConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/data/CommonConfig.cmake"
@@ -253,9 +264,11 @@ configure_package_config_file(
     PATH_VARS CMAKE_INSTALL_PREFIX
 )
 
+# Install all config files
 install(
     FILES
         "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfigVersion.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/data/AuthConfig.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/data/CommonConfig.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DDM
