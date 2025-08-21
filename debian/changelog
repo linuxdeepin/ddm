@@ -1,3 +1,9 @@
+ddm (0.1.12) unstable; urgency=medium
+
+  * feat: Support VT switching
+
+ -- rewine <luhongxu@uniontech.com>  Thu, 21 Aug 2025 11:43:52 +0800
+
 ddm (0.1.11) unstable; urgency=medium
 
   * feat: Create a new seatd service for DDE
