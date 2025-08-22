@@ -11,6 +11,7 @@
 #include <QSocketNotifier>
 #include <QSocketDescriptor>
 #include <QDebug>
+#include <QFile>
 
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
@@ -50,8 +51,20 @@ static void onReleaseDisplay() {
     ioctl(fd, VT_RELDISP, 1);
     close(fd);
 
-    int activeVtFd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-    int activeVt = VirtualTerminal::getVtActive(activeVtFd);
+    int activeVt = -1;
+    QFile tty("/sys/class/tty/tty0/active");
+    if (!tty.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning("Failed to open active tty file");
+    } else {
+        auto active = tty.readAll();
+        tty.close();
+        int scanResult = sscanf(qPrintable(active), "tty%d", &activeVt);
+        if (scanResult != 1) {
+            qWarning("Failed to parse active VT from /sys/class/tty/tty0/active with content %s", qPrintable(active));
+            activeVt = -1;
+        }
+    }
+
     auto user = daemonApp->displayManager()->findUserByVt(activeVt);
     qDebug("Next VT: %d, user: %s", activeVt, user.isEmpty() ? "None" : qPrintable(user));
     if (user.isEmpty()) {
@@ -63,10 +76,15 @@ static void onReleaseDisplay() {
         // If user is not empty, it means the switching can be issued by
         // ddm-helper. It uses VT signals from VirtualTerminal.h,
         // which is not what we want, so we should acquire VT control here.
-        VirtualTerminal::handleVtSwitches(activeVtFd);
+        int activeVtFd = open(defaultVtPath, O_RDWR | O_NOCTTY);
+        if (activeVtFd == -1) {
+            qWarning("Failed to acquire VT %d: %s", activeVt, strerror(errno));
+        } else {
+          VirtualTerminal::handleVtSwitches(activeVtFd);
+          close(activeVtFd);
+        }
         daemonApp->treelandConnector()->enableRender();
     }
-    close(activeVtFd);
 }
 
 // TreelandConnector
