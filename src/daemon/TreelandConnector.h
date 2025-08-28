@@ -5,6 +5,7 @@
 #include <QSocketNotifier>
 
 struct wl_display;
+struct wl_callback;
 struct treeland_ddm;
 
 namespace DDM {
@@ -19,10 +20,11 @@ public:
 
     void switchToGreeter();
     void switchToUser(const QString username);
+    void ackVtSwitch(const int vtnr);
     void activateSession();
     void deactivateSession();
     void enableRender();
-    void disableRender();
+    struct wl_callback *disableRender();
 private:
     struct wl_display *m_display { nullptr };
     QSocketNotifier *m_notifier { nullptr };

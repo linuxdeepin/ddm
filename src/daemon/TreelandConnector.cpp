@@ -28,29 +28,25 @@ namespace DDM {
 
 static const char *defaultVtPath = "/dev/tty0";
 
-static void onAcquireDisplay() {
-    int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-    ioctl(fd, VT_RELDISP, VT_ACKACQ);
-    int vtnr = VirtualTerminal::getVtActive(fd);
-    close(fd);
-    auto user = daemonApp->displayManager()->findUserByVt(vtnr);
-    if (!user.isEmpty()) {
-        qDebug("Activate session at VT %d for user %s", vtnr, qPrintable(user));
-        daemonApp->treelandConnector()->activateSession();
-        daemonApp->treelandConnector()->enableRender();
-        daemonApp->treelandConnector()->switchToUser(user);
-    }
-}
+/**
+ * Callback function of disableRender
+ *
+ * This will be called after treeland render has been disabled, which is
+ * happened after a VT release-display signal, to finalize VT switching (see
+ * onReleaseDisplay()).
+ */
+static void renderDisabled([[maybe_unused]] void *data, struct wl_callback *callback, [[maybe_unused]] uint32_t serial) {
+    wl_callback_destroy(callback);
 
-static void onReleaseDisplay() {
-    // TODO: Wayland request is asynchronous, which may leads a late execution,
-    // makes treeland still possible to draw on DRM after VT switching.
-    daemonApp->treelandConnector()->disableRender();
-
+    // Acknowledge kernel to release display
     int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
     ioctl(fd, VT_RELDISP, 1);
     close(fd);
 
+    // Get active VT by reading /sys/class/tty/tty0/active .
+    // Note that we cannot use open(defaultVtPath, ...) here, as the open() will
+    // block VT file access, causing error to systemd-getty-generator, and stop
+    // getty from spawning if current VT is empty.
     int activeVt = -1;
     QFile tty("/sys/class/tty/tty0/active");
     if (!tty.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -66,25 +62,54 @@ static void onReleaseDisplay() {
     }
 
     auto user = daemonApp->displayManager()->findUserByVt(activeVt);
+    auto conn = daemonApp->treelandConnector();
     qDebug("Next VT: %d, user: %s", activeVt, user.isEmpty() ? "None" : qPrintable(user));
+
     if (user.isEmpty()) {
-        // We must switch Treeland to greeter mode before we switch back to it,
-        // or it will get stuck.
-        daemonApp->treelandConnector()->switchToGreeter();
-        daemonApp->treelandConnector()->deactivateSession();
+        // Switch to a TTY, deactivate treeland session.
+        conn->switchToGreeter();
+        conn->deactivateSession();
     } else {
         // If user is not empty, it means the switching can be issued by
         // ddm-helper. It uses VT signals from VirtualTerminal.h,
         // which is not what we want, so we should acquire VT control here.
         int activeVtFd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-        if (activeVtFd == -1) {
-            qWarning("Failed to acquire VT %d: %s", activeVt, strerror(errno));
-        } else {
-          VirtualTerminal::handleVtSwitches(activeVtFd);
-          close(activeVtFd);
-        }
-        daemonApp->treelandConnector()->enableRender();
+        VirtualTerminal::handleVtSwitches(activeVtFd);
+        close(activeVtFd);
+
+        conn->enableRender();
+        conn->switchToUser(user);
     }
+}
+
+static const wl_callback_listener renderDisabledListener {
+    .done = renderDisabled,
+};
+
+static void onAcquireDisplay() {
+    int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
+
+    // Activate treeland session before we acknowledge VT switch.
+    // This will queue our rendering jobs before any keyboard event, to ensure
+    // all GUI elements are under a prepared state before next possible VT
+    // switch issued by keyboard.
+    int vtnr = VirtualTerminal::getVtActive(fd);
+    auto user = daemonApp->displayManager()->findUserByVt(vtnr);
+    auto conn = daemonApp->treelandConnector();
+    if (!user.isEmpty()) {
+        qDebug("Activate session at VT %d for user %s", vtnr, qPrintable(user));
+        conn->activateSession();
+        conn->enableRender();
+        conn->switchToUser(user);
+    }
+
+    ioctl(fd, VT_RELDISP, VT_ACKACQ);
+    close(fd);
+}
+
+static void onReleaseDisplay() {
+    auto callback = daemonApp->treelandConnector()->disableRender();
+    wl_callback_add_listener(callback, &renderDisabledListener, nullptr);
 }
 
 // TreelandConnector
@@ -108,14 +133,14 @@ void TreelandConnector::setPrivateObject(struct treeland_ddm *ddm) {
 
 // Event implementation
 
-void switchToVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm *ddm, int32_t vtnr) {
+static void switchToVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm *ddm, int32_t vtnr) {
     int fd = open(qPrintable(VirtualTerminal::path(vtnr)), O_RDWR | O_NOCTTY);
     if (ioctl(fd, VT_ACTIVATE, vtnr) < 0)
         qWarning("Failed to switch to VT %d: %s", vtnr, strerror(errno));
     close(fd);
 }
 
-void acquireVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm *ddm, int32_t vtnr) {
+static void acquireVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm *ddm, int32_t vtnr) {
     int fd = open(qPrintable(VirtualTerminal::path(vtnr)), O_RDWR | O_NOCTTY);
     VirtualTerminal::handleVtSwitches(fd);
     close(fd);
@@ -218,12 +243,14 @@ void TreelandConnector::enableRender() {
     }
 }
 
-void TreelandConnector::disableRender() {
+struct wl_callback *TreelandConnector::disableRender() {
     if (isConnected()) {
-        treeland_ddm_disable_render(m_ddm);
+        auto callback = treeland_ddm_disable_render(m_ddm);
         wl_display_flush(m_display);
+        return callback;
     } else {
         qWarning("Treeland is not connected when trying to call disableRender");
+        return nullptr;
     }
 }
 
