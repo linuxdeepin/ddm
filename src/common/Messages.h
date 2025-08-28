@@ -50,6 +50,7 @@ namespace DDM {
         InformationMessage,
         UserActivateMessage,
         SwitchToGreeter,
+        UserLoggedIn,
     };
 
     enum Capability {

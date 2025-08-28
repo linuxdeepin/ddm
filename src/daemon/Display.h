@@ -75,6 +75,7 @@ namespace DDM {
         bool start();
         void stop();
 
+        void connected(QLocalSocket *socket);
         void login(QLocalSocket *socket,
                    const QString &user, const QString &password,
                    const Session &session);
