@@ -31,6 +31,8 @@
 #include "SocketServer.h"
 #include "Greeter.h"
 #include "Utils.h"
+#include "Messages.h"
+#include "SocketWriter.h"
 
 #include <QDebug>
 #include <QFile>
@@ -148,6 +150,9 @@ namespace DDM {
         // restart display after display server ended
         connect(m_displayServer, &DisplayServer::started, this, &Display::displayServerStarted);
         connect(m_displayServer, &DisplayServer::stopped, this, &Display::stop);
+
+        // connect connected signal
+        connect(m_socketServer, &SocketServer::connected, this, &Display::connected);
 
         // connect login signal
         connect(m_socketServer, &SocketServer::login, this, &Display::login);
@@ -363,6 +368,16 @@ namespace DDM {
 
         // emit signal
         emit stopped();
+    }
+
+    void Display::connected(QLocalSocket *socket) {
+        m_socket = socket;
+        // send logined user (for possible crash recovery)
+        SocketWriter writer(socket);
+        for (Auth *auth : loginedSession()) {
+            if (auth->isActive())
+                writer << quint32(DaemonMessages::UserLoggedIn) << auth->user();
+        }
     }
 
     void Display::login(QLocalSocket *socket,
