@@ -65,6 +65,8 @@ namespace DDM {
         QLocalSocket *socket { nullptr };
         QString displayServerCmd;
         QString sessionPath { };
+        Session::Type sessionType { Session::UnknownSession };
+        QString sessionFileName { };
         QString user { };
         QString password { };
         QByteArray cookie { };
@@ -72,6 +74,7 @@ namespace DDM {
         bool greeter { false };
         bool singleMode { false };
         bool identifyOnly { false };
+        bool skipAuth { false };
         QProcessEnvironment environment { };
         qint64 id { 0 };
         static qint64 lastId;
@@ -317,6 +320,18 @@ namespace DDM {
       return d->sessionId;
     }
 
+    Session::Type Auth::sessionType() const {
+        return d->sessionType;
+    }
+
+    QString Auth::sessionFileName() const {
+        return d->sessionFileName;
+    }
+
+    bool Auth::isSingleMode() const {
+        return d->singleMode;
+    }
+
     bool Auth::isActive() const {
         return d->child->state() != QProcess::NotRunning;
     }
@@ -394,6 +409,14 @@ namespace DDM {
         }
     }
 
+    void Auth::setSessionType(const Session::Type type) {
+        d->sessionType = type;
+    }
+
+    void Auth::setSessionFileName(const QString &fileName) {
+        d->sessionFileName = fileName;
+    }
+
     int Auth::tty() const {
         return d->tty;
     }
@@ -424,6 +447,12 @@ namespace DDM {
         }
     }
 
+    void Auth::setSkipAuth(bool on) {
+        if (on != d->skipAuth) {
+            d->skipAuth = on;
+        }
+    }
+
     void Auth::start() {
         QStringList args;
         args << QStringLiteral("--socket") << SocketServer::instance()->fullServerName();
@@ -442,6 +471,8 @@ namespace DDM {
             args << QStringLiteral("--single-mode");
         if (d->identifyOnly)
             args << QStringLiteral("--identify-only");
+        if (d->skipAuth)
+            args << QStringLiteral("--skip-auth");
         d->child->start(QStringLiteral("%1/ddm-helper").arg(QStringLiteral(LIBEXEC_INSTALL_DIR)), args);
     }
 
@@ -453,7 +484,13 @@ namespace DDM {
         d->child->terminate();
 
         // wait for finished
-        if (!d->child->waitForFinished(5000))
+        // TODO: Cut off the waiting.
+        // The code will be executed when user trying to start sessions other
+        // than treeland, which will stop the currentAuth and start a new one.
+        // This process involves the removal of seatd client, which needs a
+        // small amount of time to wait. Consider to make this process under
+        // control.
+        if (!d->child->waitForFinished(500))
             d->child->kill();
     }
 }
