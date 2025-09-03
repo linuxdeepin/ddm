@@ -122,14 +122,9 @@ namespace DDM {
                 }
 
                 qInfo() << "Starting X11 session:" << m_displayServerCmd << command;
-                if (m_displayServerCmd.isEmpty()) {
-                    auto args = QProcess::splitCommand(command);
-                    setProgram(args.takeFirst());
-                    setArguments(args);
-                } else {
-                    setProgram(QStringLiteral(LIBEXEC_INSTALL_DIR "/ddm-helper-start-x11user"));
-                    setArguments({m_displayServerCmd, command});
-                }
+                auto args = QProcess::splitCommand(m_displayServerCmd);
+                setProgram(args.takeFirst());
+                setArguments(args);
                 QProcess::start();
 
             } else if (env.value(QStringLiteral("XDG_SESSION_TYPE")) == QLatin1String("wayland")) {
@@ -238,7 +233,7 @@ namespace DDM {
 
             // take control of the tty
             if (takeControl) {
-                if (ioctl(STDIN_FILENO, TIOCSCTTY, 0) < 0) {
+                if (ioctl(STDIN_FILENO, TIOCSCTTY, 1) < 0) {
                     const auto error = strerror(errno);
                     qCritical().nospace() << "Failed to take control of " << ttyString << " (" << QFileInfo(ttyString).owner() << "): " << error;
                     _exit(Auth::HELPER_TTY_ERROR);

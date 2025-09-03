@@ -72,6 +72,7 @@ namespace DDM {
         bool greeter { false };
         bool singleMode { false };
         bool identifyOnly { false };
+        bool skipAuth { false };
         QProcessEnvironment environment { };
         qint64 id { 0 };
         static qint64 lastId;
@@ -424,6 +425,12 @@ namespace DDM {
         }
     }
 
+    void Auth::setSkipAuth(bool on) {
+        if (on != d->skipAuth) {
+            d->skipAuth = on;
+        }
+    }
+
     void Auth::start() {
         QStringList args;
         args << QStringLiteral("--socket") << SocketServer::instance()->fullServerName();
@@ -442,6 +449,8 @@ namespace DDM {
             args << QStringLiteral("--single-mode");
         if (d->identifyOnly)
             args << QStringLiteral("--identify-only");
+        if (d->skipAuth)
+            args << QStringLiteral("--skip-auth");
         d->child->start(QStringLiteral("%1/ddm-helper").arg(QStringLiteral(LIBEXEC_INSTALL_DIR)), args);
     }
 

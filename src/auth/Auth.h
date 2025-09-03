@@ -146,6 +146,8 @@ namespace DDM {
         void setVerbose(bool on = true);
 
         void setIdentifyOnly(bool on = false);
+
+        void setSkipAuth(bool on = true);
         /**
         * Sets the user which will then authenticate
         * @param user username

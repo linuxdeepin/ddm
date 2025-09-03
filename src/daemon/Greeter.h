@@ -42,6 +42,8 @@ namespace DDM {
         void setSocket(const QString &socket);
         void setTheme(const QString &theme);
         void setSingleMode(bool on = true);
+        void setUser(const QString &user);
+        void setSkipAuth(bool on = true);
         void setUserActivated(bool active);
 
         QString displayServerCommand() const;
@@ -75,6 +77,8 @@ namespace DDM {
         bool m_userActivated { false };
         int m_currentRetry { 0 };
         int m_maxRetry{ 3 };
+        QString m_user = QStringLiteral("dde");
+        bool m_skipAuth { false };
 
         Display * const m_display { nullptr };
         QString m_socket;
