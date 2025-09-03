@@ -83,6 +83,14 @@ namespace DDM {
         m_singleMode = on;
     }
 
+    void Greeter::setUser(const QString &user) {
+        m_user = user;
+    }
+
+    void Greeter::setSkipAuth(bool on) {
+        m_skipAuth = on;
+    }
+
     void Greeter::setUserActivated(bool active) {
         m_userActivated = active;
     }
@@ -226,7 +234,8 @@ namespace DDM {
             if (m_display->displayServerType() == Display::X11DisplayServerType) {
                 env.insert(QStringLiteral("DISPLAY"), m_display->name());
                 env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("xcb"));
-                m_auth->setCookie(qobject_cast<XorgDisplayServer*>(displayServer)->cookie());
+                if (m_display->sessionType() == "x11")
+                    m_auth->setCookie(qobject_cast<XorgDisplayServer*>(displayServer)->cookie());
             } else if (m_display->displayServerType() == Display::WaylandDisplayServerType) {
                 env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("wayland"));
                 env.insert(QStringLiteral("QT_WAYLAND_SHELL_INTEGRATION"), QStringLiteral("fullscreen-shell-v1"));
@@ -240,7 +249,7 @@ namespace DDM {
             qDebug() << "Greeter starting...";
 
             // start greeter
-            m_auth->setUser(QStringLiteral("dde"));
+            m_auth->setUser(m_user);
             QString displayServerCmd = m_displayServerCmd;
             if (m_singleMode) {
                 displayServerCmd += " --lockscreen";
@@ -253,6 +262,10 @@ namespace DDM {
             // TODO: single compositer mode not need greeter
             if (m_singleMode) {
                 return true;
+            }
+
+            if (m_skipAuth) {
+                m_auth->setSkipAuth();
             }
 
             m_auth->start();
@@ -371,6 +384,8 @@ namespace DDM {
             Q_EMIT ttyFailed();
         } else if (status == Auth::HELPER_SESSION_ERROR) {
             Q_EMIT failed();
+        } else if (status == Auth::HELPER_SUCCESS) {
+            Q_EMIT succeed();
         }
     }
 

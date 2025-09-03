@@ -23,6 +23,7 @@
 
 #include "AuthRequest.h"
 #include "AuthPrompt.h"
+#include "Session.h"
 
 #include <QtCore/QObject>
 #include <QtCore/QProcessEnvironment>
@@ -97,12 +98,15 @@ namespace DDM {
         bool isGreeter() const;
         bool verbose() const;
         bool identifyOnly() const;
+        bool isSingleMode() const;
         const QByteArray &cookie() const;
         const QString &user() const;
         const QString &session() const;
         const QString &password() const;
         AuthRequest *request();
         QString sessionId() const;
+        Session::Type sessionType() const;
+        QString sessionFileName() const;
         int tty() const;
 
         void setTTY(int tty);
@@ -146,6 +150,8 @@ namespace DDM {
         void setVerbose(bool on = true);
 
         void setIdentifyOnly(bool on = false);
+
+        void setSkipAuth(bool on = true);
         /**
         * Sets the user which will then authenticate
         * @param user username
@@ -179,7 +185,11 @@ namespace DDM {
          */
         void setSingleMode(bool on = true);
 
-        void setSessionId(const QString& sessionId);
+        void setSessionId(const QString &sessionId);
+
+        void setSessionType(const Session::Type type);
+
+        void setSessionFileName(const QString &fileName);
 
     public Q_SLOTS:
         /**
