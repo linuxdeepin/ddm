@@ -12,11 +12,12 @@
 , pam
 , libxcrypt
 , treeland-protocols
+, wayland
 }:
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "ddm";
-  version = "0.2.2";
+  version = "0.2.0";
 
   src = nix-filter.filter {
     root = ./..;
@@ -45,6 +46,7 @@ stdenv.mkDerivation (finalAttrs: {
     pkg-config
     qttools
     wrapQtAppsHook
+    wayland-scanner
   ];
 
   buildInputs = [
@@ -53,6 +55,7 @@ stdenv.mkDerivation (finalAttrs: {
     pam
     libxcrypt
     treeland-protocols
+    wayland
   ];
 
    cmakeFlags = [

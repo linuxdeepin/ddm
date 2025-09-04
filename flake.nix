@@ -5,9 +5,17 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     nix-filter.url = "github:numtide/nix-filter";
+    treeland-protocols = {
+      url = "github:linuxdeepin/treeland-protocols";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        nix-filter.follows = "nix-filter";
+        flake-utils.follows = "flake-utils";
+      };
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, nix-filter }@input:
+  outputs = { self, nixpkgs, flake-utils, nix-filter, treeland-protocols }@input:
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" "riscv64-linux" ]
       (system:
         let
@@ -15,6 +23,7 @@
 
           ddm = pkgs.qt6Packages.callPackage ./nix {
             nix-filter = nix-filter.lib;
+            treeland-protocols = treeland-protocols.packages.${system}.default;
           };
         in
         {
