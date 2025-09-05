@@ -128,6 +128,7 @@ bool TreelandConnector::isConnected() {
 }
 
 void TreelandConnector::setPrivateObject(struct treeland_ddm *ddm) {
+    if (m_ddm) delete m_ddm;
     m_ddm = ddm;
 }
 
@@ -166,7 +167,7 @@ void registerGlobal(void *data, struct wl_registry *registry, uint32_t name, con
 }
 
 void removeGlobal([[maybe_unused]] void *data, [[maybe_unused]] struct wl_registry *registry, [[maybe_unused]] uint32_t name) {
-    // Do not deregister the global object (set m_priv to null) here,
+    // Do not deregister the global object (set m_ddm to null) here,
     // as wlroots will send global_remove event when session deactivated,
     // which is not what we want. The connection will be preserved after that.
 }
@@ -177,6 +178,12 @@ const struct wl_registry_listener registryListener {
 };
 
 void TreelandConnector::connect(QString socketPath) {
+    if (m_display) {
+        wl_display_disconnect(m_display);
+        QObject::disconnect(m_notifier, &QSocketNotifier::activated, nullptr, nullptr);
+        delete m_notifier;
+    }
+
     m_display = wl_display_connect(qPrintable(socketPath));
     auto registry = wl_display_get_registry(m_display);
 
