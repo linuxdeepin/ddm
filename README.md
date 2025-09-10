@@ -30,4 +30,4 @@ $ dpkg-buildpackage -uc -us -nc -b # build binary package(s)
 
 ## License
 
-**ddm** is licensed under [GPL-2.0](LICENSE).
+**ddm** is licensed under GPL-2.0+. See REUSE file for detailed information.
