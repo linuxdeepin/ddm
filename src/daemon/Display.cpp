@@ -122,8 +122,9 @@ namespace DDM {
         // Create display server
         switch (m_displayServerType) {
         case X11DisplayServerType:
-            m_terminalId = VirtualTerminal::setUpNewVt();
-            m_displayServer = new XorgDisplayServer(this);
+            m_terminalId = m_sessionTerminalId = fetchAvailableVt();
+            m_displayServer = new SingleWaylandDisplayServer(m_socketServer, this);
+            m_greeter->setSingleMode();
             break;
         case X11UserDisplayServerType:
             m_terminalId = fetchAvailableVt();
@@ -642,6 +643,39 @@ namespace DDM {
             if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
                 auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
                 server->onLoginSucceeded(user);
+            } else if (m_displayServerType == DisplayServerType::X11DisplayServerType) {
+                // Delete wayland server as it has finished its job
+                daemonApp->displayManager()->setLastSession(auth->sessionId());
+                disconnect(m_displayServer, &DisplayServer::started, this, &Display::displayServerStarted);
+                disconnect(m_displayServer, &DisplayServer::stopped, this, &Display::stop);
+                m_displayServer->stop();
+                delete m_displayServer;
+                m_greeter->stop();
+                delete m_greeter;
+                m_currentAuth->stop();
+                m_socketServer->stop();
+                delete m_socketServer;
+
+                // Start real X11 server and greeter
+                m_started = false;
+                m_displayServer = new XorgDisplayServer(this);
+                connect(m_displayServer, &DisplayServer::started, this, &Display::displayServerStarted);
+                connect(m_displayServer, &DisplayServer::stopped, this, &Display::stop);
+
+                m_socketServer = new SocketServer(this);
+
+                m_greeter = new Greeter(this);
+                m_greeter->setDisplayServerCommand(mainConfig.X11.SessionCommand.get());
+                m_greeter->setUser(user);
+                m_greeter->setSkipAuth();
+
+                connect(m_greeter, &Greeter::failed, this, &Display::stop);
+                connect(m_greeter, &Greeter::displayServerFailed, this, &Display::displayServerFailed);
+
+                m_displayServer->start();
+
+                m_socket = nullptr;
+                return;
             } else {
                 if (m_socket) {
                     emit loginSucceeded(m_socket, user);
@@ -711,7 +745,7 @@ namespace DDM {
             }
         }
 
-        if (status != Auth::HELPER_AUTH_ERROR && m_displayServerType != DisplayServerType::SingleCompositerServerType)
+        if (status != Auth::HELPER_AUTH_ERROR && m_displayServerType != DisplayServerType::SingleCompositerServerType && m_displayServerType != X11DisplayServerType)
             stop();
     }
 
@@ -734,7 +768,7 @@ namespace DDM {
             switchToUser(auth->user());
         }
 
-        if (success && m_displayServerType != SingleCompositerServerType) {
+        if (success && m_displayServerType != SingleCompositerServerType && m_displayServerType != X11DisplayServerType) {
             QTimer::singleShot(5000, m_greeter, &Greeter::stop);
         }
     }
