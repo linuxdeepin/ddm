@@ -1,3 +1,11 @@
+ddm (0.2.1) unstable; urgency=medium
+
+  * chore: update license configuration to REUSE specification
+  * fix: Fix nix build failure & incorrect versioning
+  * fix: fix ddm stuck into dead event loop after crash recovery
+
+ -- rewine <luhongxu@uniontech.com>  Thu, 18 Sep 2025 11:41:30 +0800
+
 ddm (0.2.0) unstable; urgency=medium
 
   * feat: Support VT switching
