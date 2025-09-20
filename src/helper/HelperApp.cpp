@@ -123,6 +123,10 @@ namespace DDM {
             m_backend->setIdentifyOnly(true);
         }
 
+        if ((pos = args.indexOf(QStringLiteral("--skip-auth"))) >= 0) {
+            m_skipAuth = true;
+        }
+
         if (server.isEmpty() || m_id <= 0) {
             qCritical() << "This application is not supposed to be executed manually";
             exit(Auth::HELPER_OTHER_ERROR);
@@ -163,7 +167,7 @@ namespace DDM {
         }
 
         Q_ASSERT(getuid() == 0);
-        if (!m_backend->authenticate()) {
+        if (!m_skipAuth && !m_backend->authenticate()) {
             authenticated(QString());
 
             // write failed login to btmp

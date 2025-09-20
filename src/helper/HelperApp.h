@@ -67,6 +67,7 @@ namespace DDM {
         QString m_user { };
         // TODO: get rid of this in a nice clean way along the way with moving to user session X server
         QByteArray m_cookie { };
+        bool m_skipAuth = false;
 
         /*!
          \brief Write utmp/wtmp/btmp records when a user logs in

@@ -590,11 +590,13 @@ namespace DDM {
         }
 
         auth->setUser(user);
+        auth->setSessionType(session.type());
+        auth->setSessionFileName(session.fileName());
         if (m_reuseSessionId.isNull()) {
             auth->setSession(session.exec());
         }
         auth->insertEnvironment(env);
-        auth->setSingleMode(m_displayServerType == DisplayServerType::SingleCompositerServerType);
+        auth->setSingleMode(session.isSingleMode());
         auth->start();
     }
 
@@ -634,22 +636,61 @@ namespace DDM {
             else
                 stateConfig.Last.User.setDefault();
             if (mainConfig.Users.RememberLastSession.get())
-                stateConfig.Last.Session.set(auth->session());
+                stateConfig.Last.Session.set(auth->sessionFileName());
             else
                 stateConfig.Last.Session.setDefault();
             stateConfig.save();
 
-            if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
+            if (auth->isSingleMode()) {
                 auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
                 server->onLoginSucceeded(user);
+                switchToUser(auth->user());
             } else {
                 if (m_socket) {
                     emit loginSucceeded(m_socket, user);
                     daemonApp->displayManager()->setLastSession(auth->sessionId());
                 }
-            }
+                if (auth->identifyOnly())
+                    return;
 
-            switchToUser(auth->user());
+                // Stop the original suit of displayServer since it has finished its job.
+                disconnect(m_displayServer, &DisplayServer::stopped, this, &Display::stop);
+                m_displayServer->stop();
+                delete m_displayServer;
+                m_greeter->stop();
+                delete m_greeter;
+                m_currentAuth->stop();
+                m_socketServer->stop();
+                delete m_socketServer;
+
+                // Start the target displayServer
+                m_terminalId = m_sessionTerminalId = fetchAvailableVt();
+                m_started = false;
+
+                if (auth->sessionType() == Session::X11Session) {
+                    m_displayServer = new XorgDisplayServer(this);
+                    m_displayServerType = X11DisplayServerType;
+                } else {
+                    m_displayServer = new WaylandDisplayServer(this);
+                    m_displayServerType = WaylandDisplayServerType;
+                }
+                connect(m_displayServer, &DisplayServer::started, this, &Display::displayServerStarted);
+                connect(m_displayServer, &DisplayServer::stopped, this, &Display::stop);
+
+                m_socketServer = new SocketServer(this);
+
+                // The greeter here is used to start user session.
+                m_greeter = new Greeter(this);
+                m_greeter->setDisplayServerCommand(auth->session());
+                m_greeter->setUser(user);
+                m_greeter->setSkipAuth();
+
+                connect(m_greeter, &Greeter::failed, this, &Display::stop);
+                connect(m_greeter, &Greeter::displayServerFailed, this, &Display::displayServerFailed);
+                connect(m_greeter, &Greeter::succeed, this, &Display::stop);
+
+                m_displayServer->start();
+            }
         }
         m_socket = nullptr;
     }
@@ -711,7 +752,8 @@ namespace DDM {
             }
         }
 
-        if (status != Auth::HELPER_AUTH_ERROR && m_displayServerType != DisplayServerType::SingleCompositerServerType)
+        // Don't restart display when ddm-helper crashed (exit code 9)
+        if (status != Auth::HELPER_AUTH_ERROR && status != Auth::HelperExitStatus(9) && m_displayServerType != DisplayServerType::SingleCompositerServerType)
             stop();
     }
 
@@ -730,7 +772,7 @@ namespace DDM {
     void Display::slotSessionStarted(bool success) {
         qDebug() << "Session started" << success;
         Auth* auth = qobject_cast<Auth*>(sender());
-        if (m_displayServerType == SingleCompositerServerType) {
+        if (auth->isSingleMode()) {
             switchToUser(auth->user());
         }
 
