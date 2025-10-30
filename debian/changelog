@@ -1,3 +1,9 @@
+ddm (0.2.2) unstable; urgency=medium
+
+  * feat: Starting sessions other than treeland using ddm
+
+ -- rewine <luhongxu@uniontech.com>  Thu, 30 Oct 2025 13:34:20 +0800
+
 ddm (0.2.1) unstable; urgency=medium
 
   * chore: update license configuration to REUSE specification
