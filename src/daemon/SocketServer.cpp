@@ -153,6 +153,16 @@ namespace DDM {
                     emit login(socket, user, password, session);
                 }
                 break;
+                case GreeterMessages::Logout: {
+                    // log message
+                    qDebug() << "Message received from greeter: Logout";
+                    // read username
+                    QString user;
+                    input >> user;
+                    // emit signal
+                    emit logout(socket, user);
+                }
+                break;
                 case GreeterMessages::Unlock : {
                     // log message
                     qDebug() << "Message received from greeter: Unlock";
