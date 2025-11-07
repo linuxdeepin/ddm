@@ -157,6 +157,9 @@ namespace DDM {
         // connect login signal
         connect(m_socketServer, &SocketServer::login, this, &Display::login);
 
+        // connect logout signal
+        connect(m_socketServer, &SocketServer::logout, this, &Display::logout);
+
         // connect unlock signal
         connect(m_socketServer, &SocketServer::unlock,this, &Display::unlock);
 
@@ -394,6 +397,31 @@ namespace DDM {
 
         // authenticate
         startAuth(user, password, session);
+    }
+
+    void Display::logout([[maybe_unused]] QLocalSocket *socket, const QString &user) {
+        struct passwd *pw = getpwnam(user.toLocal8Bit().data());
+        QDBusInterface managerInterface("org.freedesktop.login1",
+                                        "/org/freedesktop/login1",
+                                        "org.freedesktop.login1.Manager",
+                                        QDBusConnection::systemBus());
+        QDBusReply<QList<SessionInfo>> sessions = managerInterface.call("ListSessions");
+        QStringList userSessions;
+        for (const SessionInfo &session : sessions.value())
+            // TODO multiple seats.
+            if (session.userId == pw->pw_uid && !session.seatId.isEmpty())
+                userSessions << session.sessionPath.path();
+        std::sort(userSessions.begin(), userSessions.end(), [](const QString &s1, const QString &s2) {
+            return s1.localeAwareCompare(s2) > 0;
+        });
+        for (const QString &sessionPath : userSessions) {
+            QDBusInterface sessionInterface("org.freedesktop.login1",
+                                            sessionPath,
+                                            "org.freedesktop.login1.Session",
+                                            QDBusConnection::systemBus());
+            if (sessionInterface.property("Active").toBool())
+                sessionInterface.call("Terminate");
+        }
     }
 
     void Display::unlock(QLocalSocket *socket,

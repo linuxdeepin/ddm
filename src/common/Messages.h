@@ -34,6 +34,7 @@ namespace DDM {
         ActivateUser,
         BackToNormal,
         Unlock,
+        Logout,
     };
 
     enum class TreelandMessages {

@@ -79,6 +79,8 @@ namespace DDM {
         void login(QLocalSocket *socket,
                    const QString &user, const QString &password,
                    const Session &session);
+        void logout(QLocalSocket *socket,
+                    const QString &user);
         void unlock(QLocalSocket *socket,
                    const QString &user, const QString &password);
         bool attemptAutologin();
