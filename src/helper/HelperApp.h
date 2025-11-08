@@ -51,7 +51,7 @@ namespace DDM {
         void error(const QString &message, Auth::Error type);
         QProcessEnvironment authenticated(const QString &user);
         void displayServerStarted(const QString &displayName);
-        void sessionOpened(bool success);
+        void sessionOpened(bool success, int sessionId);
 
     private slots:
         void setUp();

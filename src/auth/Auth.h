@@ -108,6 +108,7 @@ namespace DDM {
         Session::Type sessionType() const;
         QString sessionFileName() const;
         int tty() const;
+        int xdgSessionId() const;
 
         void setTTY(int tty);
         /**
@@ -191,6 +192,8 @@ namespace DDM {
 
         void setSessionFileName(const QString &fileName);
 
+        void setXdgSessionId(int xdgSessionId);
+
     public Q_SLOTS:
         /**
         * Sets up the environment and starts the authentication
@@ -229,7 +232,7 @@ namespace DDM {
         *
         * @param success true if succeeded
         */
-        void sessionStarted(bool success);
+        void sessionStarted(bool success, int xdgSessionId);
 
         /**
          * Emitted when the display server is ready.

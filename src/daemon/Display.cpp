@@ -181,7 +181,7 @@ namespace DDM {
         connect(m_greeter, &Greeter::displayServerFailed, this, &Display::displayServerFailed);
         connect(m_greeter, &Greeter::greeterStarted, this, [this] {
             if (m_currentAuth) {
-                switchToUser(m_currentAuth->user());
+                switchToUser(m_currentAuth->user(), m_currentAuth->xdgSessionId());
             }
         });
     }
@@ -220,7 +220,7 @@ namespace DDM {
         return m_seat;
     }
 
-    void Display::switchToUser(const QString &user) {
+    void Display::switchToUser(const QString &user, int xdgSessionId) {
         if (user == "dde") {
             m_greeter->setUserActivated(false);
         }
@@ -239,23 +239,11 @@ namespace DDM {
         }
 
         auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
-        server->activateUser(user);
+        server->activateUser(user, xdgSessionId);
 
         if (Logind::isAvailable()) {
             OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
-            auto reply = manager.ListSessions();
-            reply.waitForFinished();
-
-            const auto info = reply.value();
-            for(const SessionInfo &s : reply.value()) {
-                if (s.userName == user) {
-                    OrgFreedesktopLogin1SessionInterface session(Logind::serviceName(), s.sessionPath.path(), QDBusConnection::systemBus());
-                    if (session.state() == "online" && session.vTNr() == static_cast<uint>(auth->tty())) {
-                        session.Activate();
-                        break;
-                    }
-                }
-            }
+            manager.ActivateSession(QString::number(auth->xdgSessionId()));
         }
     }
 
@@ -399,29 +387,9 @@ namespace DDM {
         startAuth(user, password, session);
     }
 
-    void Display::logout([[maybe_unused]] QLocalSocket *socket, const QString &user) {
-        struct passwd *pw = getpwnam(user.toLocal8Bit().data());
-        QDBusInterface managerInterface("org.freedesktop.login1",
-                                        "/org/freedesktop/login1",
-                                        "org.freedesktop.login1.Manager",
-                                        QDBusConnection::systemBus());
-        QDBusReply<QList<SessionInfo>> sessions = managerInterface.call("ListSessions");
-        QStringList userSessions;
-        for (const SessionInfo &session : sessions.value())
-            // TODO multiple seats.
-            if (session.userId == pw->pw_uid && !session.seatId.isEmpty())
-                userSessions << session.sessionPath.path();
-        std::sort(userSessions.begin(), userSessions.end(), [](const QString &s1, const QString &s2) {
-            return s1.localeAwareCompare(s2) > 0;
-        });
-        for (const QString &sessionPath : userSessions) {
-            QDBusInterface sessionInterface("org.freedesktop.login1",
-                                            sessionPath,
-                                            "org.freedesktop.login1.Session",
-                                            QDBusConnection::systemBus());
-            if (sessionInterface.property("Active").toBool())
-                sessionInterface.call("Terminate");
-        }
+    void Display::logout([[maybe_unused]] QLocalSocket *socket, int id) {
+        OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
+        manager.TerminateSession(QString::number(id));
     }
 
     void Display::unlock(QLocalSocket *socket,
@@ -672,7 +640,6 @@ namespace DDM {
             if (auth->isSingleMode()) {
                 auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
                 server->onLoginSucceeded(user);
-                switchToUser(auth->user());
             } else {
                 if (m_socket) {
                     emit loginSucceeded(m_socket, user);
@@ -772,7 +739,7 @@ namespace DDM {
             if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
                 auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
                 // TODO: switch to greeter
-                server->activateUser("dde");
+                server->activateUser("dde", 0);
 
                 // TODO: only current user logout will reset greeter state
                 m_greeter->setUserActivated(false);
@@ -797,11 +764,12 @@ namespace DDM {
         }
     }
 
-    void Display::slotSessionStarted(bool success) {
+    void Display::slotSessionStarted(bool success, int xdgSessionId) {
         qDebug() << "Session started" << success;
         Auth* auth = qobject_cast<Auth*>(sender());
+        auth->setXdgSessionId(xdgSessionId);
         if (auth->isSingleMode()) {
-            switchToUser(auth->user());
+            switchToUser(auth->user(), xdgSessionId);
         }
 
         if (success && m_displayServerType != SingleCompositerServerType) {

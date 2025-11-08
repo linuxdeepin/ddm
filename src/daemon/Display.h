@@ -65,7 +65,7 @@ namespace DDM {
         QString reuseSessionId() const { return m_reuseSessionId; }
 
         Seat *seat() const;
-        void switchToUser(const QString &user);
+        void switchToUser(const QString &user, int xdgSessionId);
 
         QVector<Auth*> loginedSession() const {
             return m_auths;
@@ -80,7 +80,7 @@ namespace DDM {
                    const QString &user, const QString &password,
                    const Session &session);
         void logout(QLocalSocket *socket,
-                    const QString &user);
+                    int id);
         void unlock(QLocalSocket *socket,
                    const QString &user, const QString &password);
         bool attemptAutologin();
@@ -122,7 +122,7 @@ namespace DDM {
     private slots:
         void slotRequestChanged();
         void slotAuthenticationFinished(const QString &user, bool success, bool identifyOnly);
-        void slotSessionStarted(bool success);
+        void slotSessionStarted(bool success, int xdgSessionId);
         void slotHelperFinished(Auth::HelperExitStatus status);
         void slotAuthInfo(const QString &message, Auth::Info info);
         void slotAuthError(const QString &message, Auth::Error error);

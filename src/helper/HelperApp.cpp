@@ -201,12 +201,12 @@ namespace DDM {
             m_session->setProcessEnvironment(env);
 
             if (!m_backend->openSession()) {
-                sessionOpened(false);
+                sessionOpened(false, 0);
                 exit(Auth::HELPER_SESSION_ERROR);
                 return;
             }
 
-            sessionOpened(true);
+            sessionOpened(true, m_backend->sessionId());
 
             // write successful login to utmp/wtmp
             const QProcessEnvironment env = m_session->processEnvironment();
@@ -282,10 +282,10 @@ namespace DDM {
         return env;
     }
 
-    void HelperApp::sessionOpened(bool success) {
+    void HelperApp::sessionOpened(bool success, int sessionId) {
         Msg m = Msg::MSG_UNKNOWN;
         SafeDataStream str(m_socket);
-        str << Msg::SESSION_STATUS << success;
+        str << Msg::SESSION_STATUS << success << sessionId;
         str.send();
         str.receive();
         str >> m;

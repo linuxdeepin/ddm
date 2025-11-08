@@ -50,7 +50,7 @@ namespace DDM {
 
         if (Display::defaultDisplayServerType() == Display::SingleCompositerServerType && !m_displays.isEmpty()) {
             auto display = m_displays.first();
-            display->switchToUser("dde");
+            display->switchToUser("dde", 0);
             return;
         }
 

@@ -325,7 +325,7 @@ namespace DDM {
         m_auth->request()->setFinishAutomatically(true);
     }
 
-    void Greeter::onSessionStarted(bool success) {
+    void Greeter::onSessionStarted(bool success,[[maybe_unused]] int xdgSessionId) {
         // set flag
         m_started = success;
 
