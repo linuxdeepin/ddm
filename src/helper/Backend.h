@@ -42,6 +42,7 @@ namespace DDM {
         void setIdentifyOnly(bool on);
 
         inline bool isGreeter() const { return m_greeter; }
+        inline int sessionId() const { return m_sessionId; }
 
     public slots:
         virtual bool start(const QString &user = QString()) = 0;
@@ -58,6 +59,7 @@ namespace DDM {
         bool m_displayServer = false;
         bool m_greeter { false };
         bool m_identifyOnly { false };
+        int m_sessionId;
     };
 }
 

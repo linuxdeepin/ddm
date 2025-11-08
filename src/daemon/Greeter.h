@@ -57,7 +57,7 @@ namespace DDM {
 
     private slots:
         void onRequestChanged();
-        void onSessionStarted(bool success);
+        void onSessionStarted(bool success, int xdgSessionId);
         void onDisplayServerReady(const QString &displayName);
         void onHelperFinished(Auth::HelperExitStatus status);
         void onReadyReadStandardOutput();

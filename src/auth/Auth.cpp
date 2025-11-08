@@ -80,6 +80,7 @@ namespace DDM {
         static qint64 lastId;
         QString sessionId;
         int tty { 0 };
+        int xdgSessionId { 0 };
     };
 
     qint64 Auth::Private::lastId = 1;
@@ -203,9 +204,10 @@ namespace DDM {
                 }
                 case SESSION_STATUS: {
                     bool status;
-                    str >> status;
+                    int sessionId;
+                    str >> status >> sessionId;
                     if(!auth->identifyOnly()) {
-                        Q_EMIT auth->sessionStarted(status);
+                        Q_EMIT auth->sessionStarted(status, sessionId);
                     }
                     str.reset();
                     str << SESSION_STATUS;
@@ -425,6 +427,14 @@ namespace DDM {
         if (tty != d->tty) {
             d->tty = tty;
         }
+    }
+
+    int Auth::xdgSessionId() const {
+        return d->xdgSessionId;
+    }
+
+    void Auth::setXdgSessionId(int xdgSessionId) {
+        d->xdgSessionId = xdgSessionId;
     }
 
     void Auth::setVerbose(bool on) {

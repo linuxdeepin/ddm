@@ -36,11 +36,6 @@ SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServe
     connect(m_socketServer, &SocketServer::disconnected, this, [this](QLocalSocket *socket) {
         m_greeterSockets.removeOne(socket);
     });
-
-    // TODO: use PAM auth again
-    connect(m_socketServer, &SocketServer::requestActivateUser, this, [this]([[maybe_unused]] QLocalSocket *socket, const QString &user){
-        activateUser(user);
-    });
 }
 
 SingleWaylandDisplayServer::~SingleWaylandDisplayServer() {
@@ -99,13 +94,13 @@ void SingleWaylandDisplayServer::setupDisplay()
 {
 }
 
-void SingleWaylandDisplayServer::activateUser(const QString &user) {
+void SingleWaylandDisplayServer::activateUser(const QString &user, int xdgSessionId) {
     for (auto greeter : m_greeterSockets) {
         if (user == "dde") {
             SocketWriter(greeter) << quint32(DaemonMessages::SwitchToGreeter);
         }
 
-        SocketWriter(greeter) << quint32(DaemonMessages::UserActivateMessage) << user;
+        SocketWriter(greeter) << quint32(DaemonMessages::UserActivateMessage) << user << xdgSessionId;
     }
 }
 

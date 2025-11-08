@@ -275,6 +275,7 @@ namespace DDM {
         }
         sessionEnv.insert(m_pam->getEnv());
         m_app->session()->setProcessEnvironment(sessionEnv);
+        m_sessionId = sessionEnv.value(QStringLiteral("XDG_SESSION_ID")).toInt();
         return Backend::openSession();
     }
 

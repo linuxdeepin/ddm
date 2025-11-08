@@ -33,7 +33,7 @@ public Q_SLOTS:
     void stop();
     void finished();
     void setupDisplay();
-    void activateUser(const QString &user);
+    void activateUser(const QString &user, int xdgSessionId);
     QString getUserWaylandSocket(const QString &user) const;
     void onLoginFailed(const QString &user);
     void onLoginSucceeded(const QString &user);
