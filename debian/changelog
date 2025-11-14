@@ -1,3 +1,10 @@
+ddm (0.2.3) unstable; urgency=medium
+
+  * feat: connect treeland with Logind session
+  * feat: Add logout cleanup
+
+ -- rewine <luhongxu@uniontech.com>  Fri, 14 Nov 2025 11:23:20 +0800
+
 ddm (0.2.2) unstable; urgency=medium
 
   * feat: Starting sessions other than treeland using ddm
