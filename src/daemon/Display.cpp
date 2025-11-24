@@ -225,16 +225,8 @@ namespace DDM {
             m_greeter->setUserActivated(false);
         }
 
-        Auth *auth = nullptr;
-
-        for (auto *a : m_auths) {
-            if (a->user() == user) {
-                auth = a;
-                break;
-            }
-        }
-
-        if (!auth) {
+        if (xdgSessionId <= 0) {
+            qFatal() << "Invalid xdg session id" << xdgSessionId << "for user" << user;
             return;
         }
 
@@ -243,7 +235,7 @@ namespace DDM {
 
         if (Logind::isAvailable()) {
             OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
-            manager.ActivateSession(QString::number(auth->xdgSessionId()));
+            manager.ActivateSession(QString::number(xdgSessionId));
         }
     }
 
@@ -637,7 +629,18 @@ namespace DDM {
                 stateConfig.Last.Session.setDefault();
             stateConfig.save();
 
-            if (auth->isSingleMode()) {
+            if (auth->identifyOnly()) {
+                auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
+                server->onLoginSucceeded(user);
+                // TODO: Use exact ID when there're multiple sessions for a user
+                int xdgSessionId = 0;
+                for (auto *auth : m_auths)
+                    if (auth->user() == user && auth->xdgSessionId() > 0) {
+                        xdgSessionId = auth->xdgSessionId();
+                        break;
+                    }
+                switchToUser(user, xdgSessionId);
+            } else if (auth->isSingleMode()) {
                 auto* server = reinterpret_cast<SingleWaylandDisplayServer*>(m_displayServer);
                 server->onLoginSucceeded(user);
             } else {
@@ -645,8 +648,6 @@ namespace DDM {
                     emit loginSucceeded(m_socket, user);
                     daemonApp->displayManager()->setLastSession(auth->sessionId());
                 }
-                if (auth->identifyOnly())
-                    return;
 
                 // Stop the original suit of displayServer since it has finished its job.
                 disconnect(m_displayServer, &DisplayServer::stopped, this, &Display::stop);
