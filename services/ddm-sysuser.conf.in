@@ -2,5 +2,6 @@
 u     dde -  "DDM Greeter Account" ${STATE_DIR}   -
 g     dde -
 m     dde dde
+m     dde seat
 m     dde video
 m     dde render
