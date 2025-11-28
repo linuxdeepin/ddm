@@ -74,8 +74,10 @@ namespace DDM {
 
         // Try to open the log file if we're not outputting to a terminal
         if (!file.isOpen() && !isatty(STDERR_FILENO)) {
-            if (!file.open(QFile::Append | QFile::WriteOnly))
-                file.open(QFile::Truncate | QFile::WriteOnly);
+            if (!file.open(QFile::Append | QFile::WriteOnly)) {
+                bool ok = file.open(QFile::Truncate | QFile::WriteOnly);
+                Q_ASSERT(ok);
+            }
 
             // If we can't open the file, create it in a writable location
             // It will look spmething like ~/.local/share/$appname/ddm.log
@@ -83,8 +85,10 @@ namespace DDM {
             if (!file.isOpen()) {
                 QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
                 file.setFileName(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QLatin1String("/ddm.log"));
-                if (!file.open(QFile::Append | QFile::WriteOnly))
-                    file.open(QFile::Truncate | QFile::WriteOnly);
+                if (!file.open(QFile::Append | QFile::WriteOnly)) {
+                    bool ok = file.open(QFile::Truncate | QFile::WriteOnly);
+                    Q_ASSERT(ok);
+                }
             }
         }
 
