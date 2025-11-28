@@ -128,7 +128,8 @@ bool TreelandConnector::isConnected() {
 }
 
 void TreelandConnector::setPrivateObject(struct treeland_ddm *ddm) {
-    if (m_ddm) delete m_ddm;
+    if (m_ddm)
+        treeland_ddm_destroy(m_ddm);
     m_ddm = ddm;
 }
 

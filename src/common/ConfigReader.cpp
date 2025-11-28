@@ -281,7 +281,8 @@ namespace DDM {
 
         // loading and checking phase
         QFile file(m_path);
-        file.open(QIODevice::ReadOnly); // first just for reading
+        bool ok = file.open(QIODevice::ReadOnly); // first just for reading
+        Q_ASSERT(ok);
         while (!file.atEnd()) {
             const QString line = QString::fromUtf8(file.readLine());
             // get rid of comments first
@@ -350,7 +351,8 @@ namespace DDM {
 
         // rewrite the whole thing only if there are changes
         if (changed) {
-            file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+            bool ok = file.open(QIODevice::WriteOnly | QIODevice::Truncate);
+            Q_ASSERT(ok);
             for (const ConfigSection *s : sectionOrder)
                 file.write(sectionData.value(s));
 
