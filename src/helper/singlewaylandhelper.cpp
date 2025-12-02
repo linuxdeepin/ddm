@@ -26,9 +26,6 @@ bool SingleWaylandHelper::start(const QString &compositor, const QString &cmd)
         auto env = QProcessEnvironment::systemEnvironment();
         env.insert("LIBSEAT_BACKEND", "seatd");
         env.insert("DSG_APP_ID", "org.deepin.dde.treeland");
-#if DEBUG
-        env.insert("WAYLAND_DEBUG", "1");
-#endif
         return env;
     }());
 
