@@ -567,10 +567,6 @@ namespace DDM {
             auth->setDisplayServerCommand(XorgUserDisplayServer::command(this));
         } else {
             if (m_displayServerType == DisplayServerType::SingleCompositerServerType) {
-                #ifdef QT_DEBUG
-                env.insert("WAYLAND_DEBUG", "1");
-                #endif
-
                 env.insert("DDE_CURRENT_COMPOSITOR", "TreeLand");
             }
 
