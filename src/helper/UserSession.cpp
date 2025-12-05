@@ -82,8 +82,7 @@ namespace DDM {
             // If the Xorg display server was already started, write the passed
             // auth cookie to /tmp/xauth_XXXXXX. This is done in the parent process
             // so that it can clean up the file on session end.
-            if (env.value(QStringLiteral("XDG_SESSION_TYPE")) == QLatin1String("x11")
-                && m_displayServerCmd.isEmpty()) {
+            if (env.value(QStringLiteral("XDG_SESSION_TYPE")) == QLatin1String("x11")) {
                 // Create the Xauthority file
                 QByteArray cookie = helper->cookie();
                 if (cookie.isEmpty()) {
@@ -111,9 +110,7 @@ namespace DDM {
 
                 env.insert(QStringLiteral("XAUTHORITY"), m_xauthFile.fileName());
                 setProcessEnvironment(env);
-            }
 
-            if (env.value(QStringLiteral("XDG_SESSION_TYPE")) == QLatin1String("x11")) {
                 QString command;
                 if (env.value(QStringLiteral("XDG_SESSION_CLASS")) == QLatin1String("greeter")) {
                     command = m_path;

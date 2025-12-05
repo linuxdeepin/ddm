@@ -1,6 +1,2 @@
 #!/bin/sh
 # Xsetup - run as root before the login dialog appears
-
-# Allow all client connect to the Xorg server. Since our X server is started as
-# root, but sessions are started as user.
-xhost +
