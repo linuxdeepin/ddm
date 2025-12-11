@@ -359,7 +359,7 @@ namespace DDM {
         SocketWriter writer(socket);
         for (Auth *auth : loginedSession()) {
             if (auth->isActive())
-                writer << quint32(DaemonMessages::UserLoggedIn) << auth->user();
+                writer << quint32(DaemonMessages::UserLoggedIn) << auth->user() << auth->xdgSessionId();
         }
     }
 
