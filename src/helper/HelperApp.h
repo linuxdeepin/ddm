@@ -29,7 +29,7 @@
 class QLocalSocket;
 
 namespace DDM {
-    class Backend;
+    class Pam;
     class UserSession;
     class HelperApp : public QCoreApplication
     {
@@ -61,13 +61,14 @@ namespace DDM {
 
     private:
         qint64 m_id { -1 };
-        Backend *m_backend { nullptr };
+        Pam *m_pam { nullptr };
         UserSession *m_session { nullptr };
         QLocalSocket *m_socket { nullptr };
         QString m_user { };
         // TODO: get rid of this in a nice clean way along the way with moving to user session X server
         QByteArray m_cookie { };
         bool m_skipAuth = false;
+        bool m_identifyOnly = false;
 
         /*!
          \brief Write utmp/wtmp/btmp records when a user logs in

@@ -5,11 +5,9 @@ include_directories(
 )
 
 set(HELPER_SOURCES
-    Backend.cpp
     HelperApp.cpp
     UserSession.cpp
-    backend/PamHandle.cpp
-    backend/PamBackend.cpp
+    Pam.cpp
 )
 
 add_executable(ddm-helper ${HELPER_SOURCES})
