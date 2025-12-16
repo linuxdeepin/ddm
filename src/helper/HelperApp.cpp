@@ -19,7 +19,7 @@
  */
 
 #include "HelperApp.h"
-#include "Backend.h"
+#include "Pam.h"
 #include "Configuration.h"
 #include "UserSession.h"
 #include "SafeDataStream.h"
@@ -49,9 +49,13 @@
 #include <signal.h>
 
 namespace DDM {
+    static Request passwordRequest{
+        { { AuthPrompt::LOGIN_PASSWORD, QStringLiteral("Password: "), true } }
+    };
+
     HelperApp::HelperApp(int& argc, char** argv)
             : QCoreApplication(argc, argv)
-            , m_backend(Backend::get(this))
+            , m_pam(new Pam(this))
             , m_session(new UserSession(this))
             , m_socket(new QLocalSocket(this)) {
         qInstallMessageHandler(HelperMessageHandler);
@@ -99,6 +103,7 @@ namespace DDM {
                 return;
             }
             m_user = args[pos + 1];
+            m_pam->user = m_user;
         }
 
         if ((pos = args.indexOf(QStringLiteral("--display-server"))) >= 0) {
@@ -108,19 +113,10 @@ namespace DDM {
                 return;
             }
             m_session->setDisplayServerCommand(args[pos + 1]);
-            m_backend->setDisplayServer(true);
-        }
-
-        if ((pos = args.indexOf(QStringLiteral("--autologin"))) >= 0) {
-            m_backend->setAutologin(true);
-        }
-
-        if ((pos = args.indexOf(QStringLiteral("--greeter"))) >= 0) {
-            m_backend->setGreeter(true);
         }
 
         if ((pos = args.indexOf(QStringLiteral("--identify-only"))) >= 0) {
-            m_backend->setIdentifyOnly(true);
+            m_identifyOnly = true;
         }
 
         if ((pos = args.indexOf(QStringLiteral("--skip-auth"))) >= 0) {
@@ -134,7 +130,7 @@ namespace DDM {
         }
 
         connect(m_socket, &QLocalSocket::connected, this, &HelperApp::doAuth);
-        if(!m_backend->identifyOnly()){
+        if(!m_identifyOnly){
             connect(m_session, &UserSession::finished, this, &HelperApp::sessionFinished);
         }
 
@@ -153,7 +149,7 @@ namespace DDM {
         if (str.status() != QDataStream::Ok)
             qCritical() << "Couldn't write initial message:" << str.status();
 
-        if (!m_backend->start(m_user)) {
+        if (!m_pam->start()) {
             authenticated(QString());
 
             // write failed login to btmp
@@ -167,20 +163,22 @@ namespace DDM {
         }
 
         Q_ASSERT(getuid() == 0);
-        if (!m_skipAuth && !m_backend->authenticate()) {
-            authenticated(QString());
+        if (!m_skipAuth) {
+            Request req = request(passwordRequest);
+            if (req.prompts.length() <= 0 || !m_pam->authenticate(req.prompts[0].response)) {
+                authenticated(QString());
 
-            // write failed login to btmp
-            const QProcessEnvironment env = m_session->processEnvironment();
-            const QString displayId = env.value(QStringLiteral("DISPLAY"));
-            const QString vt = env.value(QStringLiteral("XDG_VTNR"));
-            utmpLogin(vt, displayId, m_user, 0, false);
+                // write failed login to btmp
+                const QProcessEnvironment env = m_session->processEnvironment();
+                const QString displayId = env.value(QStringLiteral("DISPLAY"));
+                const QString vt = env.value(QStringLiteral("XDG_VTNR"));
+                utmpLogin(vt, displayId, m_user, 0, false);
 
-            exit(Auth::HELPER_AUTH_ERROR);
-            return;
+                exit(Auth::HELPER_AUTH_ERROR);
+                return;
+            }
         }
 
-        m_user = m_backend->userName();
         QProcessEnvironment env = authenticated(m_user);
 
         if (env.value(QStringLiteral("XDG_SESSION_CLASS")) == QLatin1String("greeter")) {
@@ -200,16 +198,30 @@ namespace DDM {
             env.insert(m_session->processEnvironment());
             m_session->setProcessEnvironment(env);
 
-            if (!m_backend->openSession()) {
+            auto sessionEnv = m_pam->openSession(env);
+            if (!sessionEnv.has_value()) {
                 sessionOpened(false, 0);
                 exit(Auth::HELPER_SESSION_ERROR);
                 return;
             }
 
-            sessionOpened(true, m_backend->sessionId());
+            env = *sessionEnv;
+            int sessionId = env.value(QStringLiteral("XDG_SESSION_ID")).toInt();
+            sessionOpened(true, sessionId);
+
+            struct passwd *pw;
+            pw = getpwnam(qPrintable(m_user));
+            if (pw) {
+                env.insert(QStringLiteral("HOME"), QString::fromLocal8Bit(pw->pw_dir));
+                env.insert(QStringLiteral("PWD"), QString::fromLocal8Bit(pw->pw_dir));
+                env.insert(QStringLiteral("SHELL"), QString::fromLocal8Bit(pw->pw_shell));
+                env.insert(QStringLiteral("USER"), QString::fromLocal8Bit(pw->pw_name));
+                env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
+            }
+            m_session->setProcessEnvironment(env);
+            m_session->start();
 
             // write successful login to utmp/wtmp
-            const QProcessEnvironment env = m_session->processEnvironment();
             const QString displayId = env.value(QStringLiteral("DISPLAY"));
             const QString vt = env.value(QStringLiteral("XDG_VTNR"));
             if (env.value(QStringLiteral("XDG_SESSION_CLASS")) != QLatin1String("greeter")) {
@@ -323,8 +335,8 @@ namespace DDM {
         Q_ASSERT(getuid() == 0);
 
         m_session->stop();
-        if(!m_backend->identifyOnly()){
-            m_backend->closeSession();
+        if(!m_identifyOnly && m_pam->sessionOpened){
+            m_pam->closeSession();
         }
 
         // write logout to utmp/wtmp
