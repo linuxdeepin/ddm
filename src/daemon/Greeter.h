@@ -56,14 +56,10 @@ namespace DDM {
         void finished();
 
     private slots:
-        void onRequestChanged();
         void onSessionStarted(bool success, int xdgSessionId);
-        void onDisplayServerReady(const QString &displayName);
-        void onHelperFinished(Auth::HelperExitStatus status);
+        void onHelperFinished(Auth::ExitStatus status);
         void onReadyReadStandardOutput();
         void onReadyReadStandardError();
-        void authInfo(const QString &message, Auth::Info info);
-        void authError(const QString &message, Auth::Error error);
 
     signals:
         void ttyFailed();

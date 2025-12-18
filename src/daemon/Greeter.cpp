@@ -190,13 +190,8 @@ namespace DDM {
         } else {
             // authentication
             m_auth = new Auth(this);
-            m_auth->setVerbose(true);
-            connect(m_auth, &Auth::requestChanged, this, &Greeter::onRequestChanged);
             connect(m_auth, &Auth::sessionStarted, this, &Greeter::onSessionStarted);
-            connect(m_auth, &Auth::displayServerReady, this, &Greeter::onDisplayServerReady);
             connect(m_auth, &Auth::finished, this, &Greeter::onHelperFinished);
-            connect(m_auth, &Auth::info, this, &Greeter::authInfo);
-            connect(m_auth, &Auth::error, this, &Greeter::authError);
 
             // command
             QStringList cmd;
@@ -235,7 +230,7 @@ namespace DDM {
                 env.insert(QStringLiteral("DISPLAY"), m_display->name());
                 env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("xcb"));
                 if (m_display->sessionType() == "x11")
-                    m_auth->setCookie(qobject_cast<XorgDisplayServer*>(displayServer)->cookie());
+                    m_auth->cookie = qobject_cast<XorgDisplayServer*>(displayServer)->cookie();
             } else if (m_display->displayServerType() == Display::WaylandDisplayServerType) {
                 env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("wayland"));
                 env.insert(QStringLiteral("QT_WAYLAND_SHELL_INTEGRATION"), QStringLiteral("fullscreen-shell-v1"));
@@ -243,21 +238,21 @@ namespace DDM {
                 env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("wayland"));
                 env.insert(QStringLiteral("QT_WAYLAND_SHELL_INTEGRATION"), QStringLiteral("fullscreen-shell-v1"));
             }
-            m_auth->insertEnvironment(env);
+            m_auth->environment.insert(env);
 
             // log message
             qDebug() << "Greeter starting...";
 
             // start greeter
-            m_auth->setUser(m_user);
+            m_auth->user = m_user;
             QString displayServerCmd = m_displayServerCmd;
             if (m_singleMode) {
                 displayServerCmd += " --lockscreen";
             }
-            m_auth->setDisplayServerCommand(displayServerCmd);
-            m_auth->setGreeter(true);
-            m_auth->setSession(cmd.join(QLatin1Char(' ')));
-            m_auth->setSingleMode(m_singleMode);
+            m_auth->displayServerCmd = displayServerCmd;
+            m_auth->greeter = true;
+            m_auth->sessionPath = cmd.join(QLatin1Char(' '));
+            m_auth->singleMode = m_singleMode;
 
             // TODO: single compositer mode not need greeter
             if (m_singleMode) {
@@ -265,10 +260,10 @@ namespace DDM {
             }
 
             if (m_skipAuth) {
-                m_auth->setSkipAuth();
+                m_auth->skipAuth = true;
             }
 
-            m_auth->start();
+            m_auth->start("");
 
             m_tryTimer->start();
         }
@@ -321,10 +316,6 @@ namespace DDM {
         }
     }
 
-    void Greeter::onRequestChanged() {
-        m_auth->request()->setFinishAutomatically(true);
-    }
-
     void Greeter::onSessionStarted(bool success,[[maybe_unused]] int xdgSessionId) {
         // set flag
         m_started = success;
@@ -336,20 +327,7 @@ namespace DDM {
             qDebug() << "Greeter session failed to start";
     }
 
-    void Greeter::onDisplayServerReady(const QString &displayName)
-    {
-        auto *displayServer = m_display->displayServer();
-
-        auto *xorgUser = qobject_cast<XorgUserDisplayServer *>(displayServer);
-        if (xorgUser)
-            xorgUser->setDisplayName(displayName);
-
-        auto *wayland = qobject_cast<WaylandDisplayServer *>(displayServer);
-        if (wayland)
-            wayland->setDisplayName(displayName);
-    }
-
-    void Greeter::onHelperFinished(Auth::HelperExitStatus status) {
+    void Greeter::onHelperFinished(Auth::ExitStatus status) {
         if (m_singleMode && m_currentRetry <= m_maxRetry) {
             m_currentRetry += 1;
             qDebug() << "Restart treeland";
@@ -357,8 +335,8 @@ namespace DDM {
             if (!m_userActivated) {
                 displayServerCmd += " --lockscreen";
             }
-            m_auth->setDisplayServerCommand(displayServerCmd);
-            m_auth->start();
+            m_auth->displayServerCmd = displayServerCmd;
+            m_auth->start("");
 
             if (m_tryTimer->isActive()) {
                 m_tryTimer->stop();
@@ -378,20 +356,20 @@ namespace DDM {
         m_auth->deleteLater();
         m_auth = nullptr;
 
-        if (status == Auth::HELPER_DISPLAYSERVER_ERROR) {
+        if (status == Auth::DISPLAYSERVER_ERROR) {
             Q_EMIT displayServerFailed();
-        } else if (status == Auth::HELPER_TTY_ERROR) {
+        } else if (status == Auth::TTY_ERROR) {
             Q_EMIT ttyFailed();
-        } else if (status == Auth::HELPER_SESSION_ERROR) {
+        } else if (status == Auth::SESSION_ERROR) {
             Q_EMIT failed();
-        } else if (status == Auth::HELPER_SUCCESS) {
+        } else if (status == Auth::SUCCESS) {
             Q_EMIT succeed();
         }
     }
 
     bool Greeter::isRunning() const {
         return (m_process && m_process->state() == QProcess::Running)
-            || (m_auth && m_auth->isActive());
+            || (m_auth && m_auth->active);
     }
 
     void Greeter::onReadyReadStandardError()
@@ -406,15 +384,5 @@ namespace DDM {
         if (m_process) {
             qDebug() << "Greeter output:" << m_process->readAllStandardOutput().constData();
         }
-    }
-
-    void Greeter::authInfo(const QString &message, Auth::Info info) {
-        Q_UNUSED(info);
-        qDebug() << "Information from greeter session:" << message;
-    }
-
-    void Greeter::authError(const QString &message, Auth::Error error) {
-        Q_UNUSED(error);
-        qWarning() << "Error from greeter session:" << message;
     }
 }
