@@ -120,12 +120,9 @@ namespace DDM {
         Greeter *m_greeter { nullptr };
 
     private slots:
-        void slotRequestChanged();
         void slotAuthenticationFinished(const QString &user, bool success, bool identifyOnly);
         void slotSessionStarted(bool success, int xdgSessionId);
-        void slotHelperFinished(Auth::HelperExitStatus status);
-        void slotAuthInfo(const QString &message, Auth::Info info);
-        void slotAuthError(const QString &message, Auth::Error error);
+        void slotHelperFinished(Auth::ExitStatus status);
     };
 }
 

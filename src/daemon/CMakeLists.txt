@@ -25,16 +25,19 @@ add_custom_command(
 
 configure_file(config.h.in config.h IMMEDIATE @ONLY)
 set(DAEMON_SOURCES
+    Auth.cpp
     DaemonApp.cpp
     Display.cpp
     DisplayManager.cpp
     DisplayServer.cpp
     Greeter.cpp
+    Pam.cpp
     PowerManager.cpp
     Seat.cpp
     SeatManager.cpp
     SocketServer.cpp
     TreelandConnector.cpp
+    UserSession.cpp
     XorgDisplayServer.cpp
     XorgUserDisplayServer.cpp
     XorgUserDisplayServer.h
@@ -73,12 +76,13 @@ qt_add_dbus_interface(DAEMON_SOURCES "${CMAKE_SOURCE_DIR}/data/interfaces/org.fr
 add_executable(ddm ${DAEMON_SOURCES})
 target_link_libraries(ddm
     PRIVATE
-        auth
+        common
     PUBLIC
         Qt${QT_MAJOR_VERSION}::DBus
         Qt${QT_MAJOR_VERSION}::Network
         Qt${QT_MAJOR_VERSION}::Qml
         ${LIBXCB_LIBRARIES}
+        ${PAM_LIBRARIES}
         PkgConfig::WAYLAND
 )
 

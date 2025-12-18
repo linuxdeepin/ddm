@@ -27,50 +27,29 @@
 #include <QtCore/QTemporaryFile>
 
 namespace DDM {
-    class HelperApp;
+    class Auth;
     class XOrgUserHelper;
     class WaylandHelper;
     class UserSession : public QProcess
     {
         Q_OBJECT
     public:
-        explicit UserSession(HelperApp *parent);
+        explicit UserSession(Auth *parent);
 
-        bool start();
+        void start();
         void stop();
 
-        QString displayServerCommand() const;
-        void setDisplayServerCommand(const QString &command);
-
-        void setPath(const QString &path);
-        QString path() const;
-
-        /*!
-         \brief Gets m_cachedProcessId
-         \return  The cached process ID
-        */
-        qint64 cachedProcessId();
-
-
-    Q_SIGNALS:
-        void finished(int exitCode);
+        /**
+         * Needed for getting the PID of a finished UserSession and calling HelperApp::utmpLogout
+         */
+        qint64 cachedProcessId = -1;
 
     private:
-        void setup();
-
         // Don't call it directly, it will be invoked by the child process only
         void childModifier();
 
-        QString m_path { };
         QTemporaryFile m_xauthFile;
-        QString m_displayServerCmd;
-
-        HelperApp *m_helperApp;
-
-        /*!
-         Needed for getting the PID of a finished UserSession and calling HelperApp::utmpLogout
-        */
-        qint64 m_cachedProcessId = -1;
+        Auth *m_auth;
     };
 }
 
