@@ -1,14 +1,10 @@
 // Copyright (C) 2023 Dingyuan Zhang <lxz@mkacg.com>.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "SingleWaylandDisplayServer.h"
-#include "DaemonApp.h"
-#include "DisplayManager.h"
+#include "TreelandDisplayServer.h"
 #include "Messages.h"
 #include "SocketServer.h"
-#include "Constants.h"
 #include "SocketWriter.h"
-#include "Utils.h"
 #include "Display.h"
 
 #include <QDBusInterface>
@@ -26,10 +22,9 @@
 
 using namespace DDM;
 
-SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServer, Display *parent)
-    : DDM::DisplayServer(parent)
-    , m_socketServer(socketServer)
-{
+TreelandDisplayServer::TreelandDisplayServer(SocketServer *socketServer, Display *parent)
+    : QObject(parent)
+    , m_socketServer(socketServer) {
     connect(m_socketServer, &SocketServer::connected, this, [this, parent](QLocalSocket *socket) {
         m_greeterSockets << socket;
     });
@@ -38,22 +33,11 @@ SingleWaylandDisplayServer::SingleWaylandDisplayServer(SocketServer *socketServe
     });
 }
 
-SingleWaylandDisplayServer::~SingleWaylandDisplayServer() {
+TreelandDisplayServer::~TreelandDisplayServer() {
     stop();
 }
 
-QString SingleWaylandDisplayServer::sessionType() const
-{
-    return QStringLiteral("wayland");
-}
-
-void SingleWaylandDisplayServer::setDisplayName(const QString &displayName)
-{
-    m_display = displayName;
-}
-
-bool SingleWaylandDisplayServer::start()
-{
+bool TreelandDisplayServer::start() {
     // Check flag
     if (m_started)
         return false;
@@ -66,13 +50,11 @@ bool SingleWaylandDisplayServer::start()
 
     // Set flag
     m_started = true;
-    emit started();
 
     return true;
 }
 
-void SingleWaylandDisplayServer::stop()
-{
+void TreelandDisplayServer::stop() {
     // Check flag
     if (!m_started)
         return;
@@ -83,18 +65,9 @@ void SingleWaylandDisplayServer::stop()
 
     // Reset flag
     m_started = false;
-    emit stopped();
 }
 
-void SingleWaylandDisplayServer::finished()
-{
-}
-
-void SingleWaylandDisplayServer::setupDisplay()
-{
-}
-
-void SingleWaylandDisplayServer::activateUser(const QString &user, int xdgSessionId) {
+void TreelandDisplayServer::activateUser(const QString &user, int xdgSessionId) {
     for (auto greeter : m_greeterSockets) {
         if (user == "dde") {
             SocketWriter(greeter) << quint32(DaemonMessages::SwitchToGreeter);
@@ -104,17 +77,13 @@ void SingleWaylandDisplayServer::activateUser(const QString &user, int xdgSessio
     }
 }
 
-QString SingleWaylandDisplayServer::getUserWaylandSocket(const QString &user) const {
-    return m_waylandSockets.value(user);
-}
-
-void SingleWaylandDisplayServer::onLoginFailed(const QString &user) {
+void TreelandDisplayServer::onLoginFailed(const QString &user) {
     for (auto greeter : m_greeterSockets) {
         SocketWriter(greeter) << quint32(DaemonMessages::LoginFailed) << user;
     }
 }
 
-void SingleWaylandDisplayServer::onLoginSucceeded(const QString &user) {
+void TreelandDisplayServer::onLoginSucceeded(const QString &user) {
     for (auto greeter : m_greeterSockets) {
         SocketWriter(greeter) << quint32(DaemonMessages::LoginSucceeded) << user;
     }

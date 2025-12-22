@@ -21,33 +21,36 @@
 #ifndef DDM_XORGDISPLAYSERVER_H
 #define DDM_XORGDISPLAYSERVER_H
 
-#include "DisplayServer.h"
 #include "XAuth.h"
 
 class QProcess;
 
 namespace DDM {
-    class XorgDisplayServer : public DisplayServer {
+    class Display;
+
+    class XorgDisplayServer : public QObject {
         Q_OBJECT
         Q_DISABLE_COPY(XorgDisplayServer)
     public:
         explicit XorgDisplayServer(Display *parent);
         ~XorgDisplayServer();
 
-        const QString &display() const;
-        QString authPath() const;
-
-        QString sessionType() const;
-
         const QByteArray cookie() const;
 
+        QString display{};
+
+    Q_SIGNALS:
+        void stopped();
+
     public slots:
-        bool start();
+        bool start(int vt);
         void stop();
         void finished();
         void setupDisplay();
 
     private:
+        bool m_started { false };
+
         XAuth m_xauth;
 
         QProcess *process { nullptr };

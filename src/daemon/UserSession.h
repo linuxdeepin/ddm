@@ -26,6 +26,8 @@
 #include <QtCore/QProcess>
 #include <QtCore/QTemporaryFile>
 
+#include "Display.h"
+
 namespace DDM {
     class Auth;
     class XOrgUserHelper;
@@ -36,7 +38,9 @@ namespace DDM {
     public:
         explicit UserSession(Auth *parent);
 
-        void start();
+        void start(const QString &command,
+                   Display::DisplayServerType type,
+                   const QByteArray &cookie = QByteArray());
         void stop();
 
         /**
@@ -49,7 +53,6 @@ namespace DDM {
         void childModifier();
 
         QTemporaryFile m_xauthFile;
-        Auth *m_auth;
     };
 }
 

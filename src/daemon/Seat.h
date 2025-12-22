@@ -34,7 +34,7 @@ namespace DDM {
         explicit Seat(const QString &name, QObject *parent = 0);
 
         const QString &name() const;
-        void createDisplay(Display::DisplayServerType serverType);
+        void createDisplay();
 
     public slots:
         void removeDisplay(DDM::Display* display);

@@ -23,7 +23,8 @@
 #include <QSocketNotifier>
 
 #include "Configuration.h"
-#include "Constants.h"
+#include "DaemonApp.h"
+#include "TreelandConnector.h"
 #include "UserSession.h"
 #include "Auth.h"
 #include "VirtualTerminal.h"
@@ -45,77 +46,68 @@
 
 namespace DDM {
     UserSession::UserSession(Auth *parent)
-        : QProcess(parent)
-        , m_auth(parent)
-    {
-        connect(this,
-                QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                this,
-                [this](int code) {
-                    Q_EMIT m_auth->finished(static_cast<Auth::ExitStatus>(code));
-                });
+        : QProcess(parent) {
         setChildProcessModifier(std::bind(&UserSession::childModifier, this));
     }
 
-    void UserSession::start() {
+    void UserSession::start(const QString &command, Display::DisplayServerType type, const QByteArray &cookie) {
         QProcessEnvironment env = processEnvironment();
 
-        if (m_auth->singleMode) {
+        switch (type) {
+        case Display::Treeland: {
             setProgram(mainConfig.Single.SessionCommand.get());
-            setArguments(QStringList{ m_auth->sessionPath });
-            qInfo() << "Starting Wayland user session:" << program() << m_auth->sessionPath;
+            setArguments(QStringList{ command });
+            qInfo() << "Starting Wayland user session:" << program() << command;
             QProcess::start();
             closeWriteChannel();
             closeReadChannel(QProcess::StandardOutput);
+            return;
         }
-        else {
-            // If the Xorg display server was already started, write the passed
-            // auth cookie to /tmp/xauth_XXXXXX. This is done in the parent process
-            // so that it can clean up the file on session end.
-            if (env.value(QStringLiteral("XDG_SESSION_TYPE")) == QLatin1String("x11")) {
-                QByteArray cookie = m_auth->cookie;
-                if (cookie.isEmpty()) {
-                    qCritical() << "Can't start X11 session with empty auth cookie";
-                    return;
-                }
-                // Create the Xauthority file
-                // Place it into /tmp, which is guaranteed to be read/writeable by
-                // everyone while having the sticky bit set to avoid messing with
-                // other's files.
-                m_xauthFile.setFileTemplate(QStringLiteral("/tmp/xauth_XXXXXX"));
-
-                if (!m_xauthFile.open()) {
-                    qCritical() << "Could not create the Xauthority file";
-                    return;
-                }
-
-                QString display = processEnvironment().value(QStringLiteral("DISPLAY"));
-
-                if (!XAuth::writeCookieToFile(display, m_xauthFile.fileName(), cookie)) {
-                    qCritical() << "Failed to write the Xauthority file";
-                    m_xauthFile.close();
-                    return;
-                }
-
-                env.insert(QStringLiteral("XAUTHORITY"), m_xauthFile.fileName());
-                setProcessEnvironment(env);
-
-                QString command = QStringLiteral("%1 \"%2\"").arg(mainConfig.X11.SessionCommand.get()).arg(m_auth->sessionPath);
-                qInfo() << "Starting X11 session:" << m_auth->displayServerCmd << command;
-                auto args = QProcess::splitCommand(m_auth->displayServerCmd);
-                setProgram(args.takeFirst());
-                setArguments(args);
-                QProcess::start();
-            } else if (env.value(QStringLiteral("XDG_SESSION_TYPE")) == QLatin1String("wayland")) {
-                setProgram(mainConfig.Wayland.SessionCommand.get());
-                setArguments(QStringList{ m_auth->sessionPath });
-                qInfo() << "Starting Wayland user session:" << program() << m_auth->sessionPath;
-                QProcess::start();
-                closeWriteChannel();
-                closeReadChannel(QProcess::StandardOutput);
-            } else {
-                qCritical() << "Unable to run user session: unknown session type";
+        case Display::X11: {
+            if (cookie.isEmpty()) {
+                qCritical() << "Can't start X11 session with empty auth cookie";
+                return;
             }
+            // Create the Xauthority file
+            // Place it into /tmp, which is guaranteed to be read/writeable by
+            // everyone while having the sticky bit set to avoid messing with
+            // other's files.
+            m_xauthFile.setFileTemplate(QStringLiteral("/tmp/xauth_XXXXXX"));
+
+            if (!m_xauthFile.open()) {
+                qCritical() << "Could not create the Xauthority file";
+                return;
+            }
+
+            QString display = env.value(QStringLiteral("DISPLAY"));
+
+            if (!XAuth::writeCookieToFile(display, m_xauthFile.fileName(), cookie)) {
+                qCritical() << "Failed to write the Xauthority file";
+                m_xauthFile.close();
+                return;
+            }
+
+            env.insert(QStringLiteral("XAUTHORITY"), m_xauthFile.fileName());
+            setProcessEnvironment(env);
+
+            qInfo() << "Starting X11 user session:" << command;
+            setProgram(mainConfig.X11.SessionCommand.get());
+            setArguments(QStringList{ command });
+            QProcess::start();
+            return;
+        }
+        case Display::Wayland: {
+            setProgram(mainConfig.Wayland.SessionCommand.get());
+            setArguments(QStringList{ command });
+            qInfo() << "Starting Wayland user session:" << program() << command;
+            QProcess::start();
+            closeWriteChannel();
+            closeReadChannel(QProcess::StandardOutput);
+            return;
+        }
+        default: {
+            qCritical() << "Unable to run user session: unknown session type";
+        }
         }
     }
 
@@ -123,30 +115,25 @@ namespace DDM {
     {
         if (state() != QProcess::NotRunning) {
             terminate();
-            const bool isGreeter = processEnvironment().value(QStringLiteral("XDG_SESSION_CLASS")) == QLatin1String("greeter");
-
-            // Wait longer for a session than a greeter
-            if (!waitForFinished(isGreeter ? 5000 : 60000)) {
+            if (!waitForFinished(60000)) {
                 kill();
                 if (!waitForFinished(5000)) {
                     qWarning() << "Could not fully finish the process" << program();
                 }
             }
         } else {
-            Q_EMIT finished(Auth::OTHER_ERROR);
+            Q_EMIT finished(1);
         }
     }
 
     void UserSession::childModifier() {
         // Session type
         QString sessionType = processEnvironment().value(QStringLiteral("XDG_SESSION_TYPE"));
-        QString sessionClass = processEnvironment().value(QStringLiteral("XDG_SESSION_CLASS"));
-        const bool hasDisplayServer = !m_auth->displayServerCmd.isEmpty();
-        const bool waylandUserSession = sessionType == QLatin1String("wayland") && sessionClass == QLatin1String("user");
+        const bool waylandUserSession = sessionType == QLatin1String("wayland");
 
         // When the display server is part of the session, we leak the VT into
         // the session as stdin so that it stays open without races
-        if (hasDisplayServer || waylandUserSession) {
+        if (waylandUserSession) {
             // open VT and get the fd
             int vtNumber = processEnvironment().value(QStringLiteral("XDG_VTNR")).toInt();
             QString ttyString = VirtualTerminal::path(vtNumber);
@@ -169,8 +156,7 @@ namespace DDM {
             if (setsid() < 0) {
                 qCritical("Failed to set pid %lld as leader of the new session and process group: %s",
                           QCoreApplication::applicationPid(), strerror(errno));
-                _exit(Auth::OTHER_ERROR);
-
+                _exit(1);
             }
 
             // take control of the tty
@@ -178,11 +164,11 @@ namespace DDM {
                 if (ioctl(STDIN_FILENO, TIOCSCTTY, 1) < 0) {
                     const auto error = strerror(errno);
                     qCritical().nospace() << "Failed to take control of " << ttyString << " (" << QFileInfo(ttyString).owner() << "): " << error;
-                    _exit(Auth::TTY_ERROR);
+                    _exit(1);
                 }
                 if (ioctl(STDIN_FILENO, KDSKBMODE, K_OFF) == -1) {
                     qCritical().nospace() << "Failed to set keyboard mode to K_OFF";
-                    _exit(Auth::TTY_ERROR);
+                    _exit(1);
                 }
             }
 
@@ -195,11 +181,11 @@ namespace DDM {
             int fd = ::open(qPrintable(ns), O_RDONLY);
             if (fd < 0) {
                 qCritical("open(%s) failed: %s", qPrintable(ns), strerror(errno));
-                exit(Auth::OTHER_ERROR);
+                exit(1);
             }
             if (setns(fd, 0) != 0) {
                 qCritical("setns(open(%s), 0) failed: %s", qPrintable(ns), strerror(errno));
-                exit(Auth::OTHER_ERROR);
+                exit(1);
             }
             ::close(fd);
         }
@@ -214,7 +200,7 @@ namespace DDM {
         QScopedPointer<char, QScopedPointerPodDeleter> buffer(static_cast<char*>(malloc(bufsize)));
         if (buffer.isNull()) {
             qCritical() << "Could not allocate buffer of size" << bufsize;
-            exit(Auth::OTHER_ERROR);
+            exit(1);
         }
         int err = getpwnam_r(username.constData(), &pw, buffer.data(), bufsize, &rpw);
         if (rpw == NULL) {
@@ -222,18 +208,18 @@ namespace DDM {
                 qCritical() << "getpwnam_r(" << username << ") username not found!";
             else
                 qCritical() << "getpwnam_r(" << username << ") failed with error: " << strerror(err);
-            exit(Auth::OTHER_ERROR);
+            exit(1);
         }
 
         const int xauthHandle = m_xauthFile.handle();
         if (xauthHandle != -1 && fchown(xauthHandle, pw.pw_uid, pw.pw_gid) != 0) {
             qCritical() << "fchown failed for" << m_xauthFile.fileName();
-            exit(Auth::OTHER_ERROR);
+            exit(1);
         }
 
         if (setgid(pw.pw_gid) != 0) {
             qCritical() << "setgid(" << pw.pw_gid << ") failed for user: " << username;
-            exit(Auth::OTHER_ERROR);
+            exit(1);
         }
 
         // fetch ambient groups from PAM's environment;
@@ -245,7 +231,7 @@ namespace DDM {
             if ((n_pam_groups = getgroups(n_pam_groups, pam_groups)) == -1) {
                 qCritical() << "getgroups() failed to fetch supplemental"
                             << "PAM groups for user:" << username;
-                exit(Auth::OTHER_ERROR);
+                exit(1);
             }
         } else {
             n_pam_groups = 0;
@@ -262,7 +248,7 @@ namespace DDM {
                                               &n_user_groups)) == -1 ) {
                 qCritical() << "getgrouplist(" << pw.pw_name << ", " << pw.pw_gid
                             << ") failed";
-                exit(Auth::OTHER_ERROR);
+                exit(1);
             }
         }
 
@@ -278,7 +264,7 @@ namespace DDM {
             // setgroups(2) handles duplicate groups
             if (setgroups(n_groups, groups) != 0) {
                 qCritical() << "setgroups() failed for user: " << username;
-                exit (Auth::OTHER_ERROR);
+                exit (1);
             }
             delete[] groups;
         }
@@ -287,49 +273,47 @@ namespace DDM {
 
         if (setuid(pw.pw_uid) != 0) {
             qCritical() << "setuid(" << pw.pw_uid << ") failed for user: " << username;
-            exit(Auth::OTHER_ERROR);
+            exit(1);
         }
 
         if (chdir(pw.pw_dir) != 0) {
             qCritical() << "chdir(" << pw.pw_dir << ") failed for user: " << username;
             qCritical() << "verify directory exist and has sufficient permissions";
-            exit(Auth::OTHER_ERROR);
+            exit(1);
         }
 
-        if (sessionClass != QLatin1String("greeter")) {
-            //we cannot use setStandardError file as this code is run in the child process
-            //we want to redirect after we setuid so that the log file is owned by the user
+        //we cannot use setStandardError file as this code is run in the child process
+        //we want to redirect after we setuid so that the log file is owned by the user
 
-            // determine stderr log file based on session type
-            QString sessionLog = QStringLiteral("%1/%2")
-                    .arg(QString::fromLocal8Bit(pw.pw_dir))
-                    .arg(sessionType == QLatin1String("x11")
-                         ? mainConfig.X11.SessionLogFile.get()
-                         : mainConfig.Wayland.SessionLogFile.get());
+        // determine stderr log file based on session type
+        QString sessionLog = QStringLiteral("%1/%2")
+            .arg(QString::fromLocal8Bit(pw.pw_dir))
+            .arg(sessionType == QLatin1String("x11")
+                 ? mainConfig.X11.SessionLogFile.get()
+                 : mainConfig.Wayland.SessionLogFile.get());
 
-            // create the path
-            QFileInfo finfo(sessionLog);
-            QDir().mkpath(finfo.absolutePath());
+        // create the path
+        QFileInfo finfo(sessionLog);
+        QDir().mkpath(finfo.absolutePath());
 
-            //swap the stderr pipe of this subprcess into a file
-            int fd = ::open(qPrintable(sessionLog), O_WRONLY | O_CREAT | O_TRUNC, 0600);
-            if (fd >= 0)
+        //swap the stderr pipe of this subprcess into a file
+        int fd = ::open(qPrintable(sessionLog), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (fd >= 0)
             {
                 dup2 (fd, STDERR_FILENO);
                 ::close(fd);
             } else {
-                qWarning() << "Could not open stderr to" << sessionLog;
-            }
+            qWarning() << "Could not open stderr to" << sessionLog;
+        }
 
-            //redirect any stdout to /dev/null
-            fd = ::open("/dev/null", O_WRONLY);
-            if (fd >= 0)
+        //redirect any stdout to /dev/null
+        fd = ::open("/dev/null", O_WRONLY);
+        if (fd >= 0)
             {
                 dup2 (fd, STDOUT_FILENO);
                 ::close(fd);
             } else {
-                qWarning() << "Could not redirect stdout";
-            }
+            qWarning() << "Could not redirect stdout";
         }
     }
 }
