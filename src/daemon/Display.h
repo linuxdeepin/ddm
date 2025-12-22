@@ -26,50 +26,35 @@
 #include <QPointer>
 #include <QDir>
 
-#include "Auth.h"
 #include "Session.h"
 
 class QLocalSocket;
 
 namespace DDM {
-    class Authenticator;
-    class DisplayServer;
+    class Auth;
+    class XorgDisplayServer;
+    class TreelandDisplayServer;
     class Seat;
     class SocketServer;
-    class Greeter;
 
     class Display : public QObject {
         Q_OBJECT
         Q_DISABLE_COPY(Display)
     public:
         enum DisplayServerType {
-            X11DisplayServerType,
-            X11UserDisplayServerType,
-            WaylandDisplayServerType,
-            SingleCompositerServerType
+            X11,
+            Wayland,
+            Treeland
         };
         Q_ENUM(DisplayServerType)
 
-        static DisplayServerType defaultDisplayServerType();
-        explicit Display(Seat *parent, DisplayServerType serverType);
+        explicit Display(Seat *parent);
         ~Display();
 
-        DisplayServerType displayServerType() const;
-        DisplayServer *displayServer() const;
-
-        int terminalId() const;
-
-        const QString &name() const;
-
-        QString sessionType() const;
-        QString reuseSessionId() const { return m_reuseSessionId; }
-
-        Seat *seat() const;
         void switchToUser(const QString &user, int xdgSessionId);
 
-        QVector<Auth*> loginedSession() const {
-            return m_auths;
-        }
+        Seat *seat{ nullptr };
+        int terminalId = 0;
 
     public slots:
         bool start();
@@ -83,46 +68,27 @@ namespace DDM {
                     int id);
         void unlock(QLocalSocket *socket,
                    const QString &user, const QString &password);
-        bool attemptAutologin();
-        void displayServerStarted();
 
     signals:
         void stopped();
-        void displayServerFailed();
 
         void loginFailed(QLocalSocket *socket, const QString &user);
         void loginSucceeded(QLocalSocket *socket, const QString &user);
 
     private:
-        QString findGreeterTheme() const;
-        bool findSessionEntry(const QStringList &dirPaths, const QString &name) const;
-
         void startAuth(const QString &user, const QString &password,
                        const Session &session);
         void startIdentify(const QString &user, const QString &password);
 
-        DisplayServerType m_displayServerType = X11DisplayServerType;
-
-        bool m_relogin { true };
-        bool m_started { false };
-
-        int m_terminalId = 0;
-        int m_sessionTerminalId = 0;
-
-        QString m_reuseSessionId;
-
+        bool m_started{ false };
         QVector<Auth*> m_auths;
-        Auth* m_currentAuth { nullptr };
-        DisplayServer *m_displayServer { nullptr };
-        Seat *m_seat { nullptr };
+        TreelandDisplayServer *m_treeland{ nullptr };
+        XorgDisplayServer *m_x11Server{ nullptr };
         SocketServer *m_socketServer { nullptr };
         QPointer<QLocalSocket> m_socket;
-        Greeter *m_greeter { nullptr };
 
     private slots:
-        void slotAuthenticationFinished(const QString &user, bool success, bool identifyOnly);
-        void slotSessionStarted(bool success, int xdgSessionId);
-        void slotHelperFinished(Auth::ExitStatus status);
+        void userProcessFinished(int status);
     };
 }
 

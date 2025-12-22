@@ -39,9 +39,8 @@
 #include <unistd.h>
 
 namespace DDM {
-    XorgDisplayServer::XorgDisplayServer(Display *parent) : DisplayServer(parent) {
-        if (daemonApp->testing())
-            m_xauth.setAuthDirectory(QStringLiteral("."));
+    XorgDisplayServer::XorgDisplayServer(Display *parent)
+        : QObject(parent) {
         m_xauth.setup();
     }
 
@@ -49,23 +48,11 @@ namespace DDM {
         stop();
     }
 
-    const QString &XorgDisplayServer::display() const {
-        return m_display;
-    }
-
-    QString XorgDisplayServer::authPath() const {
-        return m_xauth.authPath();
-    }
-
-    QString XorgDisplayServer::sessionType() const {
-        return QStringLiteral("x11");
-    }
-
     const QByteArray XorgDisplayServer::cookie() const {
         return m_xauth.cookie();
     }
 
-    bool XorgDisplayServer::start() {
+    bool XorgDisplayServer::start(int vt) {
         // check flag
         if (m_started)
             return false;
@@ -87,8 +74,8 @@ namespace DDM {
         // generate auth file.
         // For the X server's copy, the display number doesn't matter.
         // An empty file would result in no access control!
-        m_display = QStringLiteral(":0");
-        if(!m_xauth.addCookie(m_display)) {
+        display = QStringLiteral(":0");
+        if(!m_xauth.addCookie(display)) {
             qCritical() << "Failed to write xauth file";
             return false;
         }
@@ -110,19 +97,12 @@ namespace DDM {
 
         // start display server
         QStringList args;
-        if (!daemonApp->testing()) {
-            process->setProgram(mainConfig.X11.ServerPath.get());
-            args << mainConfig.X11.ServerArguments.get().split(QLatin1Char(' '), Qt::SkipEmptyParts)
-                 << QStringLiteral("-background") << QStringLiteral("none")
-                 << QStringLiteral("-seat") << displayPtr()->seat()->name()
-                 << QStringLiteral("vt%1").arg(displayPtr()->terminalId());
-        } else {
-            process->setProgram(mainConfig.X11.XephyrPath.get());
-            args << QStringLiteral("-br")
-                 << QStringLiteral("-screen") << QStringLiteral("800x600");
-        }
-
-        args << QStringLiteral("-auth") << m_xauth.authPath()
+        process->setProgram(mainConfig.X11.ServerPath.get());
+        args << mainConfig.X11.ServerArguments.get().split(QLatin1Char(' '), Qt::SkipEmptyParts)
+             << QStringLiteral("-background") << QStringLiteral("none")
+             << QStringLiteral("-seat") << static_cast<Display *>(parent())->seat->name()
+             << QStringLiteral("vt%1").arg(vt)
+             << QStringLiteral("-auth") << m_xauth.authPath()
              << QStringLiteral("-noreset")
              << QStringLiteral("-displayfd") << QString::number(pipeFds[1]);
 
@@ -166,23 +146,21 @@ namespace DDM {
         }
         displayNumber.prepend(QByteArray(":"));
         displayNumber.remove(displayNumber.size() -1, 1); // trim trailing whitespace
-        m_display = QString::fromLocal8Bit(displayNumber);
+        display = QString::fromLocal8Bit(displayNumber);
 
         // close our pipe
         close(pipeFds[0]);
 
         // The file is also used by the greeter, which does care about the
         // display number. Write the proper entry, if it's different.
-        if(m_display != QStringLiteral(":0")) {
-            if(!m_xauth.addCookie(m_display)) {
+        if(display != QStringLiteral(":0")) {
+            if(!m_xauth.addCookie(display)) {
                 qCritical() << "Failed to write xauth file";
                 stop();
                 return false;
             }
         }
         changeOwner(m_xauth.authPath());
-
-        emit started();
 
         // set flag
         m_started = true;
@@ -232,7 +210,7 @@ namespace DDM {
 
         // set process environment
         QProcessEnvironment env;
-        env.insert(QStringLiteral("DISPLAY"), m_display);
+        env.insert(QStringLiteral("DISPLAY"), display);
         env.insert(QStringLiteral("HOME"), QStringLiteral("/"));
         env.insert(QStringLiteral("PATH"), mainConfig.Users.DefaultPath.get());
         env.insert(QStringLiteral("SHELL"), QStringLiteral("/bin/sh"));
@@ -263,7 +241,7 @@ namespace DDM {
 
         // set process environment
         QProcessEnvironment env;
-        env.insert(QStringLiteral("DISPLAY"), m_display);
+        env.insert(QStringLiteral("DISPLAY"), display);
         env.insert(QStringLiteral("HOME"), QStringLiteral("/"));
         env.insert(QStringLiteral("PATH"), mainConfig.Users.DefaultPath.get());
         env.insert(QStringLiteral("XAUTHORITY"), m_xauth.authPath());

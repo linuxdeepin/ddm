@@ -131,7 +131,7 @@ namespace DDM {
         qWarning() << "[PAM] openSession:" << pam_strerror(d->handle, d->ret); \
         return std::nullopt;                                                   \
     }
-    std::optional<QProcessEnvironment> Pam::openSession(QProcessEnvironment sessionEnv) {
+    std::optional<QProcessEnvironment> Pam::openSession(const QProcessEnvironment &sessionEnv) {
         qDebug() << "[PAM] Opening session for user" << user;
 
         d->ret = pam_setcred(d->handle, PAM_ESTABLISH_CRED);

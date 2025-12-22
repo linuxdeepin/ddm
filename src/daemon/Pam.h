@@ -41,7 +41,7 @@ namespace DDM {
          * Open PAM session with given environment variables
          * @return Environment variables set by PAM modules on success, std::nullopt on failure
          */
-        std::optional<QProcessEnvironment> openSession(QProcessEnvironment sessionEnv);
+        std::optional<QProcessEnvironment> openSession(const QProcessEnvironment &sessionEnv);
         /**
          * Close PAM session
          * @return true on success, false on failure

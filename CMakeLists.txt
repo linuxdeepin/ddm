@@ -248,14 +248,6 @@ write_basic_package_version_file(
     COMPATIBILITY SameMajorVersion
 )
 
-# Configure Auth config file
-configure_package_config_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/data/AuthConfig.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/data/AuthConfig.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DDM
-    PATH_VARS CMAKE_INSTALL_PREFIX
-)
-
 # Configure Common config file
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/data/CommonConfig.cmake.in"
@@ -269,7 +261,6 @@ install(
     FILES
         "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfig.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfigVersion.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/data/AuthConfig.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/data/CommonConfig.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/DDM
 )

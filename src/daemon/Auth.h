@@ -21,7 +21,7 @@
 #ifndef DDM_AUTH_H
 #define DDM_AUTH_H
 
-#include "Session.h"
+#include "Display.h"
 
 #include <QtCore/QObject>
 #include <QtCore/QProcessEnvironment>
@@ -36,39 +36,29 @@ namespace DDM {
         Auth(QObject *parent);
         ~Auth();
 
-        enum ExitStatus {
-            SUCCESS = 0,
-            AUTH_ERROR,
-            SESSION_ERROR,
-            OTHER_ERROR,
-            DISPLAYSERVER_ERROR,
-            TTY_ERROR,
-        };
-        Q_ENUM(ExitStatus)
-
         bool active{ false };
-        QString displayServerCmd{};
-        QString sessionPath{};
-        Session::Type sessionType{ Session::UnknownSession };
-        QString sessionFileName{};
         QString user{};
         QByteArray cookie{};
-        bool autologin{ false };
-        bool greeter{ false };
         bool singleMode{ false };
-        bool identifyOnly{ false };
         bool skipAuth{ false };
-        QProcessEnvironment environment{ };
+        
         int id{ 0 };
         static int lastId;
         QString sessionId{};
+        QString display{};
         int tty{ 0 };
         int xdgSessionId{ 0 };
     public Q_SLOTS:
         /**
         * Sets up the environment and starts the authentication
         */
-        void start(const QByteArray &secret);
+        bool authenticate(const QByteArray &secret);
+
+        int openSession(const QProcessEnvironment &env);
+
+        void startUserProcess(const QString &command,
+                              Display::DisplayServerType type,
+                              const QByteArray &cookie = QByteArray());
 
         /**
          * Indicates that we do not need the process anymore.
@@ -77,33 +67,16 @@ namespace DDM {
 
     Q_SIGNALS:
         /**
-        * Emitted when authentication phase finishes
-        *
-        * @note If you want to set some environment variables for the session right before the
-        * session is started, connect to this signal using a blocking connection and insert anything
-        * you need in the slot.
-        * @param user username
-        * @param success true if succeeded
-        */
-        void authentication(QString user, bool success, bool identifyOnly);
-
-        /**
-        * Emitted when session starting phase finishes
-        *
-        * @param success true if succeeded
-        */
-        void sessionStarted(bool success, int xdgSessionId);
-
-        /**
-        * Emitted when the session ends.
-        *
-        * @param success true if every underlying task went fine
-        */
-        void finished(Auth::ExitStatus status);
+         * Emitted when the session ends.
+         *
+         * @param success true if every underlying task went fine
+         */
+        void userProcessFinished(int status);
 
     private:
         Pam *m_pam { nullptr };
         UserSession *m_session{ nullptr };
+        QProcessEnvironment m_env{};
 
         /**
          * Write utmp/wtmp/btmp records when a user logs in

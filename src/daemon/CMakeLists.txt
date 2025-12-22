@@ -29,8 +29,6 @@ set(DAEMON_SOURCES
     DaemonApp.cpp
     Display.cpp
     DisplayManager.cpp
-    DisplayServer.cpp
-    Greeter.cpp
     Pam.cpp
     PowerManager.cpp
     Seat.cpp
@@ -39,12 +37,7 @@ set(DAEMON_SOURCES
     TreelandConnector.cpp
     UserSession.cpp
     XorgDisplayServer.cpp
-    XorgUserDisplayServer.cpp
-    XorgUserDisplayServer.h
-    WaylandDisplayServer.cpp
-    WaylandDisplayServer.h
-    SingleWaylandDisplayServer.h
-    SingleWaylandDisplayServer.cpp
+    TreelandDisplayServer.cpp
     ${TREELAND_DDM_SOURCE}
 )
 

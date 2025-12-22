@@ -149,7 +149,7 @@ namespace DDM {
             return;
 
         // switch to greeter
-        m_seats.value(name)->createDisplay(Display::defaultDisplayServerType());
+        m_seats.value(name)->createDisplay();
     }
 
     void DDM::SeatManager::logindSeatAdded(const QString& name, const QDBusObjectPath& objectPath)
