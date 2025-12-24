@@ -1,5 +1,3 @@
-install(DIRECTORY "flags" DESTINATION "${DATA_INSTALL_DIR}")
-
 install(FILES
     "org.freedesktop.DisplayManager.conf"
     DESTINATION "${DBUS_CONFIG_DIR}"
@@ -9,18 +7,6 @@ install(FILES
 install(FILES
     "org.deepin.DisplayManager.conf"
     DESTINATION "${DBUS_CONFIG_DIR}"
-)
-
-install(FILES
-    "faces/root.face.icon.png"
-    DESTINATION "${DATA_INSTALL_DIR}/faces"
-    RENAME "root.face.icon"
-)
-
-install(FILES
-    "faces/default.face.icon.png"
-    DESTINATION "${DATA_INSTALL_DIR}/faces"
-    RENAME ".face.icon"
 )
 
 install(FILES
@@ -34,8 +20,6 @@ install(FILES
         GROUP_READ GROUP_EXECUTE
         WORLD_READ WORLD_EXECUTE
 )
-
-add_subdirectory(systemd)
 
 if(BUILD_MAN_PAGES)
     add_subdirectory(man)

@@ -29,88 +29,21 @@
 #include <utmpx.h>
 
 namespace DDM {
-    int Auth::lastId = 0;
 
-    Auth::Auth(QObject *parent)
-        : QObject(parent)
-        , id(++lastId)
-        , m_pam(new Pam(this))
-        , m_session(new UserSession(this)) {
-        connect(m_session,
-                QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                this,
-                &Auth::userProcessFinished);
-    }
+    //////////////////////
+    // Helper functions //
+    //////////////////////
 
-    Auth::~Auth() {
-        stop();
-    }
-
-    bool Auth::authenticate(const QByteArray &secret) {
-        m_pam->user = user;
-        if (!m_pam->start()) {
-            utmpLogin(std::to_string(tty).c_str(), display, user, 0, false);
-            return false;
-        }
-        if (!skipAuth && !m_pam->authenticate(secret)) {
-            utmpLogin(std::to_string(tty).c_str(), display, user, 0, false);
-            return false;
-        }
-        active = true;
-        return true;
-    }
-
-    int Auth::openSession(const QProcessEnvironment &env) {
-        Q_ASSERT(active);
-        auto ret = m_pam->openSession(env);
-        if (!ret.has_value())
-            return -1;
-        m_env = *ret;
-        xdgSessionId = m_env.value(QStringLiteral("XDG_SESSION_ID")).toInt();
-        return xdgSessionId;
-    }
-
-    void Auth::startUserProcess(const QString &command, Display::DisplayServerType type, const QByteArray &cookie) {
-        Q_ASSERT(!m_env.isEmpty());
-        QProcessEnvironment env = m_env;
-        struct passwd *pw = getpwnam(qPrintable(user));
-        if (pw) {
-            env.insert(QStringLiteral("HOME"), QString::fromLocal8Bit(pw->pw_dir));
-            env.insert(QStringLiteral("PWD"), QString::fromLocal8Bit(pw->pw_dir));
-            env.insert(QStringLiteral("SHELL"), QString::fromLocal8Bit(pw->pw_shell));
-            env.insert(QStringLiteral("USER"), QString::fromLocal8Bit(pw->pw_name));
-            env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
-        }
-        m_session->setProcessEnvironment(env);
-        m_session->start(command, type, cookie);
-
-        // write successful login to utmp/wtmp
-        const QString displayId = env.value(QStringLiteral("DISPLAY"));
-        const QString vt = env.value(QStringLiteral("XDG_VTNR"));
-        // cache pid for session end
-        utmpLogin(vt, displayId, user, m_session->processId(), true);
-    }
-
-    void Auth::stop() {
-        if (!active)
-            return;
-        active = false;
-        qint64 pid = m_session->processId();
-        if (m_session->state() != QProcess::NotRunning)
-            m_session->stop();
-        if (m_pam->sessionOpened)
-            m_pam->closeSession();
-
-        // write logout to utmp/wtmp
-        if (pid > 0) {
-            QProcessEnvironment env = m_session->processEnvironment();
-            QString vt = env.value(QStringLiteral("XDG_VTNR"));
-            QString displayId = env.value(QStringLiteral("DISPLAY"));
-            utmpLogout(vt, displayId, pid);
-        }
-    }
-
-    void Auth::utmpLogin(const QString &vt, const QString &displayName, const QString &user, qint64 pid, bool authSuccessful) {
+    /**
+     * Write utmp/wtmp/btmp records when a user logs in
+     *
+     * @param vt  Virtual terminal (tty7, tty8,...)
+     * @param displayName  Display (:0, :1,...)
+     * @param user  User logging in
+     * @param pid  User process ID (e.g. PID of startkde)
+     * @param authSuccessful  Was authentication successful
+     */
+    static void utmpLogin(const QString &vt, const QString &displayName, const QString &user, qint64 pid, bool authSuccessful) {
         struct utmpx entry { };
         struct timeval tv;
 
@@ -155,7 +88,14 @@ namespace DDM {
         }
     }
 
-    void Auth::utmpLogout(const QString &vt, const QString &displayName, qint64 pid) {
+    /**
+     * Write utmp/wtmp records when a user logs out
+     *
+     * @param vt  Virtual terminal (tty7, tty8,...)
+     * @param displayName  Display (:0, :1,...)
+     * @param pid  User process ID (e.g. PID of startkde)
+     */
+    static void utmpLogout(const QString &vt, const QString &displayName, qint64 pid) {
         struct utmpx entry { };
         struct timeval tv;
 
@@ -188,5 +128,88 @@ namespace DDM {
 
         // append to wtmp
         updwtmpx("/var/log/wtmp", &entry);
+    }
+
+    /////////////////////////
+    // Auth implementation //
+    /////////////////////////
+
+    Auth::Auth(QObject *parent, QString user)
+        : QObject(parent)
+        , user(user)
+        , m_pam(new Pam(this))
+        , m_session(new UserSession(this)) {
+        connect(m_session,
+                QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this,
+                &Auth::userProcessFinished);
+    }
+
+    Auth::~Auth() {
+        stop();
+    }
+
+    bool Auth::authenticate(const QByteArray &secret) {
+        m_pam->user = user;
+        if (!m_pam->start()) {
+            utmpLogin(std::to_string(tty).c_str(), display, user, 0, false);
+            return false;
+        }
+        if (!m_pam->authenticate(secret)) {
+            utmpLogin(std::to_string(tty).c_str(), display, user, 0, false);
+            return false;
+        }
+        active = true;
+        return true;
+    }
+
+    int Auth::openSession(const QProcessEnvironment &env) {
+        Q_ASSERT(active);
+        auto ret = m_pam->openSession(env);
+        if (!ret.has_value())
+            return -1;
+        m_env = *ret;
+        xdgSessionId = m_env.value(QStringLiteral("XDG_SESSION_ID")).toInt();
+        return xdgSessionId;
+    }
+
+    void Auth::startUserProcess(const QString &command, const QByteArray &cookie) {
+        Q_ASSERT(!m_env.isEmpty());
+        QProcessEnvironment env = m_env;
+        struct passwd *pw = getpwnam(qPrintable(user));
+        if (pw) {
+            env.insert(QStringLiteral("HOME"), QString::fromLocal8Bit(pw->pw_dir));
+            env.insert(QStringLiteral("PWD"), QString::fromLocal8Bit(pw->pw_dir));
+            env.insert(QStringLiteral("SHELL"), QString::fromLocal8Bit(pw->pw_shell));
+            env.insert(QStringLiteral("USER"), QString::fromLocal8Bit(pw->pw_name));
+            env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
+        }
+        m_session->setProcessEnvironment(env);
+        m_session->start(command, type, cookie);
+
+        // write successful login to utmp/wtmp
+        const QString displayId = env.value(QStringLiteral("DISPLAY"));
+        const QString vt = env.value(QStringLiteral("XDG_VTNR"));
+        // cache pid for session end
+        utmpLogin(vt, displayId, user, m_session->processId(), true);
+    }
+
+    void Auth::stop() {
+        if (!active)
+            return;
+        active = false;
+        qint64 pid = m_session->processId();
+        if (m_session->state() != QProcess::NotRunning)
+            m_session->stop();
+        if (m_pam->sessionOpened)
+            m_pam->closeSession();
+
+        // write logout to utmp/wtmp
+        if (pid > 0) {
+            QProcessEnvironment env = m_session->processEnvironment();
+            QString vt = env.value(QStringLiteral("XDG_VTNR"));
+            QString displayId = env.value(QStringLiteral("DISPLAY"));
+            utmpLogout(vt, displayId, pid);
+        }
     }
 } // namespace DDM

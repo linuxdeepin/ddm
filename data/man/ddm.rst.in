@@ -2,11 +2,11 @@
  ddm
 ======
 
-----------------------------------
-the simple desktop display manager
-----------------------------------
+---
+DDM
+---
 
-:Date: May 2014
+:Date: Dec 2025
 :Version: ddm @DDM_VERSION_STRING@
 :Manual section: 1
 :Manual group: ddm
@@ -19,13 +19,8 @@ ddm [OPTIONS...]
 DESCRIPTION
 ===========
 
-ddm is a display and login manager based on Qt technologies.
-
-Using QtQuick and QML, designers are given the ability to
-easily create pleasant, modern looking interfaces for ddm.
-
-ddm runs the greeter as a system user named **ddm**
-whose home directory needs to be set to **/var/lib/ddm**.
+ddm is a display and login manager based on Qt technologies and using
+Treeland as greeter.
 
 If pam and systemd are available, the greeter will go through logind,
 which will give it access to drm devices.
@@ -61,9 +56,6 @@ FILES
 
 **@CONFIG_FILE@**
 	Local configuration file for compatibility
-
-**@DATA_INSTALL_DIR@/themes**
-	Where ddm looks for themes
 
 SEE ALSO
 ========

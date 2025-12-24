@@ -30,71 +30,87 @@ namespace DDM {
     class Pam;
     class UserSession;
 
+    /** Authentication handler, manage login and session */
     class Auth : public QObject {
         Q_OBJECT
     public:
-        Auth(QObject *parent);
+        Auth(QObject *parent, QString user);
         ~Auth();
 
+        /** Indicates whether the Auth is active (PAM module started) */
         bool active{ false };
+
+        /** Username. Must be set before authenticate() */
         QString user{};
-        QByteArray cookie{};
-        bool singleMode{ false };
-        bool skipAuth{ false };
-        
-        int id{ 0 };
-        static int lastId;
+
+        /** Display sever type of the session. Must be set before startUserProcess() */
+        Display::DisplayServerType type{};
+
+        /** The "Session ID" (defined and used by DisplayManager) */
         QString sessionId{};
+
+        /** X Display identifier (e.g. :0), if presents */
         QString display{};
+
+        /** Virtual terminal number (e.g. 7 for tty7) */
         int tty{ 0 };
+
+        /** Logind session ID (the XDG_SESSION_ID env var) */
         int xdgSessionId{ 0 };
+
     public Q_SLOTS:
         /**
-        * Sets up the environment and starts the authentication
-        */
+         * Sets up the environment and starts the authentication.
+         *
+         * @param secret Password or other secret data acceptable by PAM
+         * @return true on success, false on failure
+         */
         bool authenticate(const QByteArray &secret);
 
+        /**
+         * Opens user session via PAM and returns the XDG_SESSION_ID.
+         * Must be called after authenticate().
+         *
+         * @param env Environment variables to set for the session
+         * @return XDG_SESSION_ID on success, -1 on failure
+         */
         int openSession(const QProcessEnvironment &env);
 
-        void startUserProcess(const QString &command,
-                              Display::DisplayServerType type,
-                              const QByteArray &cookie = QByteArray());
+        /**
+         * Starts process inside opened session.
+         * Must be called after openSession().
+         * Only 1 process can be started per Auth instance,
+         * userProcessFinished() is emitted when the process ends.
+         * Implemented in UserSession.
+         *
+         * @param command Command to exec
+         * @param cookie XAuth cookie (must be set for X11)
+         */
+        void startUserProcess(const QString &command, const QByteArray &cookie = QByteArray());
 
         /**
-         * Indicates that we do not need the process anymore.
+         * Stop PAM, close opened session and end up user process.
+         * This will be automatically called in the destructor.
          */
         void stop();
 
     Q_SIGNALS:
         /**
-         * Emitted when the session ends.
+         * Emitted when the user process ends.
          *
-         * @param success true if every underlying task went fine
+         * @param status Exit code of the user process
          */
         void userProcessFinished(int status);
 
     private:
-        Pam *m_pam { nullptr };
+        /** The PAM module */
+        Pam *m_pam{ nullptr };
+
+        /** The user process */
         UserSession *m_session{ nullptr };
+
+        /** Cached environment inside the opened logind session, for the user process */
         QProcessEnvironment m_env{};
-
-        /**
-         * Write utmp/wtmp/btmp records when a user logs in
-         * @param vt  Virtual terminal (tty7, tty8,...)
-         * @param displayName  Display (:0, :1,...)
-         * @param user  User logging in
-         * @param pid  User process ID (e.g. PID of startkde)
-         * @param authSuccessful  Was authentication successful
-         */
-        void utmpLogin(const QString &vt, const QString &displayName, const QString &user, qint64 pid, bool authSuccessful);
-
-        /**
-         * Write utmp/wtmp records when a user logs out
-         * @param vt  Virtual terminal (tty7, tty8,...)
-         * @param displayName  Display (:0, :1,...)
-         * @param pid  User process ID (e.g. PID of startkde)
-        */
-        void utmpLogout(const QString &vt, const QString &displayName, qint64 pid);
     };
 }
 

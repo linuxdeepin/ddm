@@ -4,12 +4,9 @@ set(PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/src/common/Configuration.h
     ${CMAKE_SOURCE_DIR}/src/common/MessageHandler.h
     ${CMAKE_SOURCE_DIR}/src/common/Messages.h
-    ${CMAKE_SOURCE_DIR}/src/common/SafeDataStream.h
     ${CMAKE_SOURCE_DIR}/src/common/Session.h
     ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.h
     ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.h
-    ${CMAKE_SOURCE_DIR}/src/common/ThemeConfig.h
-    ${CMAKE_SOURCE_DIR}/src/common/ThemeMetadata.h
     ${CMAKE_SOURCE_DIR}/src/common/VirtualTerminal.h
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.h
     ${CMAKE_BINARY_DIR}/src/common/Constants.h
@@ -19,12 +16,9 @@ set(PUBLIC_HEADERS
 set(SRCS
     ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.cpp
     ${CMAKE_SOURCE_DIR}/src/common/Configuration.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/SafeDataStream.cpp
     ${CMAKE_SOURCE_DIR}/src/common/Session.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/ThemeConfig.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/ThemeMetadata.cpp
     ${CMAKE_SOURCE_DIR}/src/common/VirtualTerminal.cpp
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.cpp
     ${CMAKE_SOURCE_DIR}/src/common/LogindDBusTypes.cpp

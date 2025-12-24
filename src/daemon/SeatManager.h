@@ -23,9 +23,9 @@
 #include <QObject>
 #include <QHash>
 #include <QDBusObjectPath>
+#include "Display.h"
 
 namespace DDM {
-    class Seat;
     class LogindSeat;
 
     class SeatManager : public QObject {
@@ -38,6 +38,9 @@ namespace DDM {
         void removeSeat(const QString &name);
         void switchToGreeter(const QString &seat);
 
+        QList<Display *> displays; //these will exist only for graphical seats
+        QHash<QString, LogindSeat*> systemSeats; //these will exist for all seats
+
     Q_SIGNALS:
         void seatCreated(const QString &name);
         void seatRemoved(const QString &name);
@@ -45,10 +48,10 @@ namespace DDM {
     private Q_SLOTS:
         void logindSeatAdded(const QString &name, const QDBusObjectPath &objectPath);
         void logindSeatRemoved(const QString &name, const QDBusObjectPath &objectPath);
+        void displayStopped();
 
     private:
-        QHash<QString, Seat *> m_seats; //these will exist only for graphical seats
-        QHash<QString, LogindSeat*> m_systemSeats; //these will exist for all seats
+        void startDisplay(Display *display, int tryNr = 1);
     };
 }
 

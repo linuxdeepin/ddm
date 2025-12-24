@@ -19,7 +19,6 @@ function(BUILD_MAN_PAGE _sources _src _dst)
 endfunction()
 
 build_man_page(MAN1_OUTPUT "ddm.rst" "ddm.1")
-build_man_page(MAN1_OUTPUT "ddm-greeter.rst" "ddm-greeter.1")
 build_man_page(MAN5_OUTPUT "ddm.conf.rst" "ddm.conf.5")
 build_man_page(MAN5_OUTPUT "ddm-state.conf.rst" "ddm-state.conf.5")
 

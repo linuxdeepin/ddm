@@ -26,7 +26,6 @@
 #include "displaymanageradaptor.h"
 #include "seatadaptor.h"
 #include "sessionadaptor.h"
-#include "VirtualTerminal.h"
 
 const QString DISPLAYMANAGER_SERVICE = QStringLiteral("org.freedesktop.DisplayManager");
 const QString DISPLAYMANAGER_PATH = QStringLiteral("/org/freedesktop/DisplayManager");
@@ -40,7 +39,7 @@ namespace DDM {
         new DDMDisplayManagerAdaptor(this);
 
         // register object
-        QDBusConnection connection = (daemonApp->testing()) ? QDBusConnection::sessionBus() : QDBusConnection::systemBus();
+        QDBusConnection connection = QDBusConnection::systemBus();
         connection.registerService(DISPLAYMANAGER_SERVICE);
         connection.registerObject(DISPLAYMANAGER_PATH, this);
 
@@ -193,7 +192,7 @@ namespace DDM {
         new SeatAdaptor(this);
 
         // register object
-        QDBusConnection connection = (daemonApp->testing()) ? QDBusConnection::sessionBus() : QDBusConnection::systemBus();
+        QDBusConnection connection = QDBusConnection::systemBus();
         connection.registerService(DISPLAYMANAGER_SERVICE);
         connection.registerObject(m_path, this);
     }
@@ -232,7 +231,7 @@ namespace DDM {
         new SessionAdaptor(this);
 
         // register object
-        QDBusConnection connection = (daemonApp->testing()) ? QDBusConnection::sessionBus() : QDBusConnection::systemBus();
+        QDBusConnection connection = QDBusConnection::systemBus();
         connection.registerService(DISPLAYMANAGER_SERVICE);
         connection.registerObject(m_path, this);
     }
