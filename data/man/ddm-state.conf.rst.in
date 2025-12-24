@@ -2,11 +2,11 @@
  state.conf
 ============
 
-----------------------------------
-ddm display manager configuration
-----------------------------------
+-----------------
+ddm configuration
+-----------------
 
-:Date: August 2014
+:Date: Dec 2025
 :Version: ddm @DDM_VERSION_STRING@
 :Manual section: 5
 :Manual group: ddm

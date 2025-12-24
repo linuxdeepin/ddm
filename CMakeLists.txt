@@ -25,8 +25,6 @@ include(FeatureSummary)
 # Options
 option(BUILD_MAN_PAGES "Build man pages" OFF)
 option(ENABLE_JOURNALD "Enable logging to journald" ON)
-option(NO_SYSTEMD "Disable systemd support" OFF)
-option(USE_ELOGIND "Use elogind instead of logind" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -67,14 +65,11 @@ find_package(PkgConfig)
 # PAM
 find_package(PAM REQUIRED)
 
+# Systemd
+pkg_check_modules(Systemd REQUIRED systemd)
+
 # XAU
 pkg_check_modules(LIBXAU REQUIRED "xau")
-
-# XCB
-find_package(XCB REQUIRED)
-
-# XKB
-find_package(XKB REQUIRED)
 
 # TreelandProtocols
 find_package(TreelandProtocols 0.5.0  REQUIRED)
@@ -90,83 +85,39 @@ if ("${ECM_VERSION}" VERSION_LESS "1.7.0")
     add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 endif()
 
-# systemd
-if(NOT NO_SYSTEMD AND NOT USE_ELOGIND)
-    pkg_check_modules(SYSTEMD "systemd")
-endif()
+add_definitions(-DHAVE_SYSTEMD)
+set(CMAKE_AUTOMOC_MOC_OPTIONS -DHAVE_SYSTEMD)
 
-if(SYSTEMD_FOUND)
-    add_definitions(-DHAVE_SYSTEMD)
-    set(CMAKE_AUTOMOC_MOC_OPTIONS -DHAVE_SYSTEMD)
+# libsystemd-journal was merged into libsystemd in 209
+pkg_check_modules(JOURNALD "libsystemd")
 
-    # libsystemd-journal was merged into libsystemd in 209
-    if(${SYSTEMD_VERSION} VERSION_LESS 209)
-        pkg_check_modules(JOURNALD "libsystemd-journal")
+if(ENABLE_JOURNALD)
+    if(JOURNALD_FOUND)
+        add_definitions(-DHAVE_JOURNALD)
+        set(CMAKE_AUTOMOC_MOC_OPTIONS -DHAVE_JOURNALD)
     else()
-        pkg_check_modules(JOURNALD "libsystemd")
+        message(WARNING "Disable journald support for lack of libsystemd-journal")
     endif()
-
-    if(ENABLE_JOURNALD)
-        if(JOURNALD_FOUND)
-            add_definitions(-DHAVE_JOURNALD)
-            set(CMAKE_AUTOMOC_MOC_OPTIONS -DHAVE_JOURNALD)
-        else()
-            message(WARNING "Disable journald support for lack of libsystemd-journal")
-        endif()
-    endif()
-
-    if (NOT DEFINED SYSTEMD_SYSTEM_UNIT_DIR)
-        pkg_get_variable(SYSTEMD_SYSTEM_UNIT_DIR systemd systemdsystemunitdir)
-    endif()
-
-    if (NOT DEFINED SYSTEMD_SYSUSERS_DIR)
-        pkg_get_variable(SYSTEMD_SYSUSERS_DIR systemd sysusersdir)
-    endif()
-
-    if (NOT DEFINED SYSTEMD_TMPFILES_DIR)
-        pkg_get_variable(SYSTEMD_TMPFILES_DIR systemd tmpfilesdir)
-    endif()
-
-    set(HALT_COMMAND "/usr/bin/systemctl poweroff")
-    set(REBOOT_COMMAND "/usr/bin/systemctl reboot")
-else()
-    set(SYSTEMD_FOUND 0)
 endif()
-add_feature_info("systemd" SYSTEMD_FOUND "systemd support")
+
+if (NOT DEFINED SYSTEMD_SYSTEM_UNIT_DIR)
+    pkg_get_variable(SYSTEMD_SYSTEM_UNIT_DIR systemd systemdsystemunitdir)
+endif()
+
+if (NOT DEFINED SYSTEMD_SYSUSERS_DIR)
+    pkg_get_variable(SYSTEMD_SYSUSERS_DIR systemd sysusersdir)
+endif()
+
+if (NOT DEFINED SYSTEMD_TMPFILES_DIR)
+    pkg_get_variable(SYSTEMD_TMPFILES_DIR systemd tmpfilesdir)
+endif()
+
+set(HALT_COMMAND "/usr/bin/systemctl poweroff")
+set(REBOOT_COMMAND "/usr/bin/systemctl reboot")
+
 add_feature_info("journald" JOURNALD_FOUND "journald support")
 
-# elogind
-if(NO_SYSTEMD AND USE_ELOGIND)
-    pkg_check_modules(ELOGIND "libelogind")
-endif()
-
-if(ELOGIND_FOUND)
-    add_definitions(-DHAVE_ELOGIND)
-    set(CMAKE_AUTOMOC_MOC_OPTIONS -DHAVE_ELOGIND)
-
-    set(HALT_COMMAND "/usr/bin/loginctl poweroff")
-    set(REBOOT_COMMAND "/usr/bin/loginctl reboot")
-endif()
-add_feature_info("elogind" ELOGIND_FOUND "elogind support")
-
-# Default behaviour if neither systemd nor elogind is used
-if (NOT ELOGIND_FOUND AND NOT SYSTEMD_FOUND)
-    # Set the VT on which ddm will normally appear, and the
-    # commands for shutdown and reboot. On FreeBSD, there are
-    # normally more getty's running than on Linux.
-    if("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD")
-        set(HALT_COMMAND "/sbin/shutdown -p now")
-    else()
-        set(HALT_COMMAND "/sbin/shutdown -h -P now")
-    endif()
-    set(REBOOT_COMMAND "/sbin/shutdown -r now")
-endif()
-
-if (SYSTEMD_FOUND)
-    set(RUNTIME_DIR_DEFAULT "/run/ddm")
-else()
-    set(RUNTIME_DIR_DEFAULT "${CMAKE_INSTALL_LOCALSTATEDIR}/run/ddm")
-endif()
+set(RUNTIME_DIR_DEFAULT "/run/ddm")
 
 # Set constants
 set(DATA_INSTALL_DIR            "${CMAKE_INSTALL_FULL_DATADIR}/ddm"                CACHE PATH      "System application data install directory")
@@ -223,9 +174,6 @@ endif()
 add_subdirectory(data)
 add_subdirectory(services)
 add_subdirectory(src)
-
-# enable_testing()
-# add_subdirectory(test)
 
 # Display feature summary
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)

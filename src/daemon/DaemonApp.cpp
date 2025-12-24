@@ -49,9 +49,6 @@ namespace DDM {
         // log message
         qDebug() << "Initializing...";
 
-        // set testing parameter
-        m_testing = (arguments().indexOf(QStringLiteral("--test-mode")) != -1);
-
         bool consoleKitServiceActivatable = false;
         QDBusReply<QStringList> activatableNamesReply = QDBusConnection::systemBus().interface()->activatableServiceNames();
         if (activatableNamesReply.isValid()) {
@@ -94,11 +91,6 @@ namespace DDM {
         // initialize seats only after signals are connected
         m_seatManager->initialize();
     }
-
-    bool DaemonApp::testing() const {
-        return m_testing;
-    }
-
 
     QString DaemonApp::hostName() const {
         return QHostInfo::localHostName();
@@ -143,7 +135,6 @@ int main(int argc, char **argv) {
     if (arguments.contains(QStringLiteral("--help")) || arguments.contains(QStringLiteral("-h"))) {
         std::cout << "Usage: ddm [options]\n"
                   << "Options: \n"
-                  << "  --test-mode         Start daemon in test mode" << std::endl
                   << "  --example-config    Print the complete current configuration to stdout" << std::endl;
 
         return EXIT_FAILURE;

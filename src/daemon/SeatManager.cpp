@@ -19,15 +19,18 @@
 
 #include "SeatManager.h"
 
+#include "Configuration.h"
 #include "DaemonApp.h"
-#include "Seat.h"
+#include "Display.h"
 
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingReply>
 #include <QDBusContext>
+#include <QTimer>
 
 #include "LogindDBusTypes.h"
+#include <Login1Manager.h>
 
 namespace DDM {
 
@@ -94,7 +97,7 @@ namespace DDM {
     }
 
     void SeatManager::initialize() {
-        if (DaemonApp::instance()->testing() || !Logind::isAvailable()) {
+        if (!Logind::isAvailable()) {
             //if we don't have logind/CK2, just create a single seat immediately and don't do any other connections
             createSeat(QStringLiteral("seat0"));
             return;
@@ -118,41 +121,80 @@ namespace DDM {
     }
 
     void SeatManager::createSeat(const QString &name) {
-        // create a seat
-        Seat *seat = new Seat(name, this);
+        //reload config if needed
+        mainConfig.load();
+
+        // create a new display
+        qDebug() << "Adding new display...";
+        Display *display = new Display(this, name);
+
+        // restart display on stop
+        connect(display, &Display::stopped, this, &SeatManager::displayStopped);
+
+        // start the display
+        startDisplay(display);
 
         // add to the list
-        m_seats.insert(name, seat);
+        displays.append(display);
 
         // emit signal
         emit seatCreated(name);
     }
 
     void SeatManager::removeSeat(const QString &name) {
-        // check if seat exists
-        if (!m_seats.contains(name))
-            return;
-
-        // remove from the list
-        Seat *seat = m_seats.take(name);
-
-        // delete seat
-        seat->deleteLater();
-
-        // emit signal
-        emit seatRemoved(name);
+        for (auto display : std::as_const(displays)) {
+            if (display->name == name) {
+                // remove from the list
+                displays.removeAll(display);
+                // stop the display
+                display->blockSignals(true);
+                display->stop();
+                display->blockSignals(false);
+                // delete display
+                display->deleteLater();
+                // emit signal
+                emit seatRemoved(name);
+                return;
+            }
+        }
     }
 
     void SeatManager::switchToGreeter(const QString &name) {
-        // check if seat exists
-        if (!m_seats.contains(name))
-            return;
-
-        // switch to greeter
-        m_seats.value(name)->createDisplay();
+        for (auto display : std::as_const(displays)) {
+            if (display->name == name) {
+                // switch to greeter
+                display->activateSession("ddm", 0);
+                return;
+            }
+        }
     }
 
-    void DDM::SeatManager::logindSeatAdded(const QString& name, const QDBusObjectPath& objectPath)
+    void SeatManager::startDisplay(Display *display, int tryNr) {
+        if (display->start())
+            return;
+
+        // It's possible that the system isn't ready yet (driver not loaded,
+        // device not enumerated, ...). It's not possible to tell when that changes,
+        // so try a few times with a delay in between.
+        qWarning() << "Attempt" << tryNr << "starting the Display server on vt" << display->terminalId << "failed";
+
+        if(tryNr >= 3) {
+            qCritical() << "Could not start Display server on vt" << display->terminalId;
+            return;
+        }
+
+        QTimer::singleShot(2000, display, [this, display, tryNr] { startDisplay(display, tryNr + 1); });
+    }
+
+    void SeatManager::displayStopped() {
+        Display *display = qobject_cast<Display *>(sender());
+        QString name = display->name;
+        // re-create display
+        removeSeat(name);
+        createSeat(name);
+    }
+
+    void SeatManager::logindSeatAdded(const QString& name, const QDBusObjectPath& objectPath)
     {
         auto logindSeat = new LogindSeat(name, objectPath);
         connect(logindSeat, &LogindSeat::canGraphicalChanged, this, [this, logindSeat]() {
@@ -163,13 +205,13 @@ namespace DDM {
             }
         });
 
-        m_systemSeats.insert(name, logindSeat);
+        systemSeats.insert(name, logindSeat);
     }
 
-    void DDM::SeatManager::logindSeatRemoved(const QString& name, const QDBusObjectPath& objectPath)
+    void SeatManager::logindSeatRemoved(const QString& name, const QDBusObjectPath& objectPath)
     {
         Q_UNUSED(objectPath);
-        auto logindSeat = m_systemSeats.take(name);
+        auto logindSeat = systemSeats.take(name);
         delete logindSeat;
         removeSeat(name);
     }

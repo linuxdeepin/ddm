@@ -1,6 +1,5 @@
 include_directories(
     ${LIBXAU_INCLUDE_DIRS}
-    "${LIBXCB_INCLUDE_DIR}"
 )
 
 pkg_search_module(WAYLAND REQUIRED IMPORTED_TARGET wayland-client)
@@ -31,7 +30,6 @@ set(DAEMON_SOURCES
     DisplayManager.cpp
     Pam.cpp
     PowerManager.cpp
-    Seat.cpp
     SeatManager.cpp
     SocketServer.cpp
     TreelandConnector.cpp
@@ -74,7 +72,6 @@ target_link_libraries(ddm
         Qt${QT_MAJOR_VERSION}::DBus
         Qt${QT_MAJOR_VERSION}::Network
         Qt${QT_MAJOR_VERSION}::Qml
-        ${LIBXCB_LIBRARIES}
         ${PAM_LIBRARIES}
         PkgConfig::WAYLAND
 )

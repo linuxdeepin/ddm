@@ -1,0 +1,147 @@
+===========
+ ddm.conf
+===========
+
+----------------------------------
+ddm display manager configuration
+----------------------------------
+
+:Date: Dec 2025
+:Version: ddm @DDM_VERSION_STRING@
+:Manual section: 5
+:Manual group: ddm
+
+SYNOPSIS
+========
+
+Configuration loads all files in the configuration directories followed by the configuration file in the order listed below with the latter having highest precedence. Changes should be made to the local configurations.
+
+**@SYSTEM_CONFIG_DIR@**
+	System configuration directory
+
+**@CONFIG_DIR@**
+	Local configuration directory
+
+**@CONFIG_FILE@**
+	Local configuration file for compatibility
+
+DESCRIPTION
+===========
+
+This file configures various parameters of the ddm display manager **ddm**\(1\).
+If this file is not available, default values are used.
+
+OPTIONS
+=======
+
+[General] section:
+
+`HaltCommand=`
+	Halt command.
+	Default value is "@HALT_COMMAND@".
+
+`RebootCommand=`
+	Reboot command.
+	Default value is "@REBOOT_COMMAND@".
+
+`Namespaces=`
+	Comma-separated list of paths bound to Linux namespaces to enter with
+	setns() before starting the user session.  For example, to enter network
+	namespace `mynet` created with `ip netns add mynet`, the value might be
+	`/run/netns/mynet`.  Default value is empty.  (The value is ignored if
+	the operating system is not Linux.)
+
+[Theme] section:
+
+`CursorTheme=`
+	Name of the cursor theme to be set before starting
+	the display server.
+
+`CursorSize=`
+	Cursor size to be set before starting the display server.
+
+[X11] section:
+
+`ServerPath=`
+	Path of the X server.
+	Default value is "/usr/bin/X".
+
+`ServerArguments=`
+	Arguments to the X server.
+	Default value is "-nolisten tcp".
+
+`SessionDir=`
+	Comma-separated list of directories containing session files.
+	Default value is "/usr/local/share/xsessions,/usr/share/xsessions".
+
+`SessionCommand=`
+	Path of script to execute when starting the user session. This script
+	receives the value of the "Exec" setting in the ".desktop" file of the selected
+	session and runs it.
+	Default value is "@SESSION_COMMAND@".
+
+`SessionLogFile=`
+	Path to the user session log file, relative to the home directory.
+    Default value is ".local/share/ddm/xorg-session.log".
+
+`DisplayCommand=`
+	Path of script to execute when starting the display server.
+	The script will be executed as root when General.DisplayServer
+	is "x11", otherwise as ddm user.
+	Default value is "@DATA_INSTALL_DIR@/scripts/Xsetup".
+
+`DisplayStopCommand=`
+	Path of script to execute when stopping the display server.
+	The script will be executed as root when General.DisplayServer
+	is "x11", otherwise as ddm user.
+	Default value is "@DATA_INSTALL_DIR@/scripts/Xstop".
+
+[Wayland] section:
+
+`SessionDir=`
+	Comma-separated list of directories containing session files.
+	Default value is "/usr/local/share/wayland-sessions,/usr/share/wayland-sessions".
+
+`SessionCommand=`
+	Path of script to execute when starting the user session. This script
+	receives the value of the "Exec" setting in the ".desktop" file of the selected
+	session and run it.
+	Default value is "@WAYLAND_SESSION_COMMAND@".
+
+`SessionLogFile=`
+	Path to the user session log file, relative to the home directory.
+	Default value is ".local/share/ddm/wayland-session.log".
+
+[Single] section:
+
+`SessionCommand=`
+	Path of script to execute when starting the user session for Treeland.
+    This script receives the value of the "Exec" setting in the ".desktop" file
+    of the selected session and run it.
+	Default value is "@WAYLAND_SESSION_COMMAND@".
+
+[Users] section:
+
+`DefaultPath=`
+	Default path to set after successfully logging in.
+	This is also where DDM looks for programs.
+	Default value is "/usr/local/bin:/usr/bin:/bin".
+
+`RememberLastUser=`
+	If this flag is true, LastUser value will updated
+	on every successful login, if false last user value
+	won't be updated.
+	Default value is true.
+
+`RememberLastSession=`
+	If this flag is true, LastSession value will updated
+	on every successful login, if false last session value
+	won't be updated.
+	Default value is true.
+
+SEE ALSO
+========
+
+**ddm**\(1\)
+
+The full documentation for ddm is available at https://github.com/ddm/ddm

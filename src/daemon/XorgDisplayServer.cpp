@@ -21,19 +21,11 @@
 #include "XorgDisplayServer.h"
 
 #include "Configuration.h"
-#include "DaemonApp.h"
 #include "Display.h"
-#include "Seat.h"
 
 #include <QDebug>
 #include <QFile>
-#include <QDir>
 #include <QProcess>
-#include <QUuid>
-
-#include <random>
-
-#include <xcb/xcb.h>
 
 #include <pwd.h>
 #include <unistd.h>
@@ -100,7 +92,7 @@ namespace DDM {
         process->setProgram(mainConfig.X11.ServerPath.get());
         args << mainConfig.X11.ServerArguments.get().split(QLatin1Char(' '), Qt::SkipEmptyParts)
              << QStringLiteral("-background") << QStringLiteral("none")
-             << QStringLiteral("-seat") << static_cast<Display *>(parent())->seat->name()
+             << QStringLiteral("-seat") << static_cast<Display *>(parent())->name
              << QStringLiteral("vt%1").arg(vt)
              << QStringLiteral("-auth") << m_xauth.authPath()
              << QStringLiteral("-noreset")

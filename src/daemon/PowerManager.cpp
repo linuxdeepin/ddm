@@ -174,8 +174,7 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
         }
 
         void reboot() const {
-            if (!daemonApp->testing())
-                m_interface->call(QStringLiteral("Reboot"), true);
+            m_interface->call(QStringLiteral("Reboot"), true);
         }
 
         void suspend() const {
@@ -228,9 +227,6 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::powerOff() const {
-        if (daemonApp->testing())
-            return;
-
         for (PowerManagerBackend *backend: m_backends) {
             if (backend->capabilities() & Capability::PowerOff) {
                 backend->powerOff();
@@ -240,9 +236,6 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::reboot() const {
-        if (daemonApp->testing())
-            return;
-
         for (PowerManagerBackend *backend: m_backends) {
             if (backend->capabilities() & Capability::Reboot) {
                 backend->reboot();
@@ -252,9 +245,6 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::suspend() const {
-        if (daemonApp->testing())
-            return;
-
         for (PowerManagerBackend *backend: m_backends) {
             if (backend->capabilities() & Capability::Suspend) {
                 backend->suspend();
@@ -264,9 +254,6 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::hibernate() const {
-        if (daemonApp->testing())
-            return;
-
         for (PowerManagerBackend *backend: m_backends) {
             if (backend->capabilities() & Capability::Hibernate) {
                 backend->hibernate();
@@ -276,9 +263,6 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::hybridSleep() const {
-        if (daemonApp->testing())
-            return;
-
         for (PowerManagerBackend *backend: m_backends) {
             if (backend->capabilities() & Capability::HybridSleep) {
                 backend->hybridSleep();
