@@ -336,7 +336,13 @@ namespace DDM {
 
         // Exec the desktop process
         connect(auth, &Auth::userProcessFinished, this, &Display::userProcessFinished);
+        // FIXME: Someone is triggering VT RELDISP signal during
+        // fork(), which will cause dead lock on glibc malloc arena
+        // lock. We have to disable our own VT signal handling
+        // temporarily...
+        VirtualTerminal::setVtSignalHandler(nullptr, nullptr);
         auth->startUserProcess(session.exec(), cookie);
+        daemonApp->treelandConnector()->setSignalHandler();
 
         // The user process is ongoing, append to active auths
         // The auth will be delete later in userProcessFinished()
