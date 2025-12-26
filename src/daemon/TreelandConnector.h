@@ -16,6 +16,7 @@ public:
     ~TreelandConnector();
     bool isConnected();
     void setPrivateObject(struct treeland_ddm *ddm);
+    void setSignalHandler();
     void connect(const QString socketPath);
 
     void switchToGreeter();

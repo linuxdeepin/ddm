@@ -130,7 +130,7 @@ static void onReleaseDisplay() {
 // TreelandConnector
 
 TreelandConnector::TreelandConnector() : QObject(nullptr) {
-    VirtualTerminal::setVtSignalHandler(onAcquireDisplay, onReleaseDisplay);
+    setSignalHandler();
 }
 
 TreelandConnector::~TreelandConnector() {
@@ -144,6 +144,10 @@ bool TreelandConnector::isConnected() {
 
 void TreelandConnector::setPrivateObject(struct treeland_ddm *ddm) {
     m_ddm = ddm;
+}
+
+void TreelandConnector::setSignalHandler() {
+    VirtualTerminal::setVtSignalHandler(onAcquireDisplay, onReleaseDisplay);
 }
 
 // Event implementation
