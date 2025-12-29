@@ -103,7 +103,7 @@ namespace DDM {
         DaemonApp::instance()->displayManager()->AddSession(
             {},
             name,
-            "ddm",
+            "dde",
             static_cast<uint>(VirtualTerminal::currentVt()));
 
         // connect connected signal
@@ -130,7 +130,7 @@ namespace DDM {
     }
 
     void Display::activateSession(const QString &user, int xdgSessionId) {
-        if (xdgSessionId <= 0 && user != QStringLiteral("ddm")) {
+        if (xdgSessionId <= 0 && user != QStringLiteral("dde")) {
             qCritical() << "Invalid xdg session id" << xdgSessionId << "for user" << user;
             return;
         }
@@ -324,6 +324,7 @@ namespace DDM {
         // Open Logind session
         int xdgSessionId = auth->openSession(env);
         if (xdgSessionId <= 0) {
+            qCritical() << "Failed to open logind session for user" << user;
             auth->stop();
             delete auth;
             return;
@@ -336,10 +337,7 @@ namespace DDM {
 
         // Exec the desktop process
         connect(auth, &Auth::userProcessFinished, this, &Display::userProcessFinished);
-        // FIXME: Someone is triggering VT RELDISP signal during
-        // fork(), which will cause dead lock on glibc malloc arena
-        // lock. We have to disable our own VT signal handling
-        // temporarily...
+        VirtualTerminal::jumpToVt(auth->tty, false, false);
         VirtualTerminal::setVtSignalHandler(nullptr, nullptr);
         auth->startUserProcess(session.exec(), cookie);
         daemonApp->treelandConnector()->setSignalHandler();

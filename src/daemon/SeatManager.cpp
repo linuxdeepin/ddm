@@ -163,7 +163,7 @@ namespace DDM {
         for (auto display : std::as_const(displays)) {
             if (display->name == name) {
                 // switch to greeter
-                display->activateSession("ddm", 0);
+                display->activateSession("dde", 0);
                 return;
             }
         }

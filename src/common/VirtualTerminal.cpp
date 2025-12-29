@@ -207,7 +207,7 @@ out:
             return vt;
         }
 
-        void jumpToVt(int vt, bool vt_auto) {
+        void jumpToVt(int vt, bool vt_auto, bool wait) {
             qDebug() << "Jumping to VT" << vt;
 
             int fd;
@@ -257,7 +257,7 @@ out:
                     break;
                 }
 
-                if (ioctl(fd, VT_WAITACTIVE, vt) < 0 && errno != EINTR)
+                if (wait && ioctl(fd, VT_WAITACTIVE, vt) < 0 && errno != EINTR)
                     qWarning("Couldn't finalize jump to VT %d: %s", vt, strerror(errno));
 
             } while (errno == EINTR);
