@@ -171,8 +171,6 @@ namespace DDM {
                     _exit(1);
                 }
             }
-
-            VirtualTerminal::jumpToVt(vtNumber, !waylandUserSession);
         }
 
         // enter Linux namespaces
