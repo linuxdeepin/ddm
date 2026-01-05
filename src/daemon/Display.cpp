@@ -348,6 +348,9 @@ namespace DDM {
     }
 
     void Display::logout([[maybe_unused]] QLocalSocket *socket, int id) {
+        for (Auth *auth : std::as_const(auths))
+            if (auth->xdgSessionId == id)
+                auth->stop();
         OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
         manager.TerminateSession(QString::number(id));
     }

@@ -199,6 +199,8 @@ namespace DDM {
             return;
         active = false;
         qint64 pid = m_session->processId();
+        QString vt = m_env.value(QStringLiteral("XDG_VTNR"));
+        QString displayId = m_env.value(QStringLiteral("DISPLAY"));
         if (m_session->state() != QProcess::NotRunning)
             m_session->stop();
         if (m_pam->sessionOpened)
@@ -206,9 +208,6 @@ namespace DDM {
 
         // write logout to utmp/wtmp
         if (pid > 0) {
-            QProcessEnvironment env = m_session->processEnvironment();
-            QString vt = env.value(QStringLiteral("XDG_VTNR"));
-            QString displayId = env.value(QStringLiteral("DISPLAY"));
             utmpLogout(vt, displayId, pid);
         }
     }
