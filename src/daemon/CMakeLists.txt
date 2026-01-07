@@ -28,7 +28,6 @@ set(DAEMON_SOURCES
     DaemonApp.cpp
     Display.cpp
     DisplayManager.cpp
-    Pam.cpp
     PowerManager.cpp
     SeatManager.cpp
     SocketServer.cpp
