@@ -22,11 +22,10 @@
 #include <QCoreApplication>
 #include <QSocketNotifier>
 
+#include "Auth.h"
 #include "Configuration.h"
-#include "DaemonApp.h"
 #include "TreelandConnector.h"
 #include "UserSession.h"
-#include "Auth.h"
 #include "VirtualTerminal.h"
 #include "XAuth.h"
 
@@ -50,7 +49,9 @@ namespace DDM {
         setChildProcessModifier(std::bind(&UserSession::childModifier, this));
     }
 
-    void UserSession::start(const QString &command, Display::DisplayServerType type, const QByteArray &cookie) {
+    void UserSession::start(const QString &command,
+                            Display::DisplayServerType type,
+                            const QByteArray &cookie) {
         QProcessEnvironment env = processEnvironment();
 
         switch (type) {
@@ -127,16 +128,19 @@ namespace DDM {
     }
 
     void UserSession::childModifier() {
-        // Session type
-        QString sessionType = processEnvironment().value(QStringLiteral("XDG_SESSION_TYPE"));
-        const bool waylandUserSession = sessionType == QLatin1String("wayland");
+        // Open session
+        Auth *auth = qobject_cast<Auth *>(parent());
+        char **env = auth->openSessionInternal(processEnvironment());
+        if (!env) {
+            qCritical() << "Failed to open PAM session in user session process";
+            _exit(1);
+        }
 
         // When the display server is part of the session, we leak the VT into
         // the session as stdin so that it stays open without races
-        if (waylandUserSession) {
+        if (auth->type != Display::X11) {
             // open VT and get the fd
-            int vtNumber = processEnvironment().value(QStringLiteral("XDG_VTNR")).toInt();
-            QString ttyString = VirtualTerminal::path(vtNumber);
+            QString ttyString = VirtualTerminal::path(auth->tty);
             int vtFd = ::open(qPrintable(ttyString), O_RDWR | O_NOCTTY);
 
             // when this is true we'll take control of the tty
@@ -172,6 +176,7 @@ namespace DDM {
                 }
             }
         }
+        VirtualTerminal::jumpToVt(auth->tty, false);
 
         // enter Linux namespaces
         for (const QString &ns: mainConfig.Namespaces.get()) {
@@ -189,7 +194,7 @@ namespace DDM {
         }
 
         // switch user
-        const QByteArray username = qobject_cast<Auth*>(parent())->user.toLocal8Bit();
+        const QByteArray username = auth->user.toLocal8Bit();
         struct passwd pw;
         struct passwd *rpw;
         long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
@@ -286,7 +291,7 @@ namespace DDM {
         // determine stderr log file based on session type
         QString sessionLog = QStringLiteral("%1/%2")
             .arg(QString::fromLocal8Bit(pw.pw_dir))
-            .arg(sessionType == QLatin1String("x11")
+            .arg(auth->type == Display::X11
                  ? mainConfig.X11.SessionLogFile.get()
                  : mainConfig.Wayland.SessionLogFile.get());
 
@@ -313,5 +318,17 @@ namespace DDM {
             } else {
             qWarning() << "Could not redirect stdout";
         }
+
+        // We execve manually, to be able to pass the PAM environment
+        QString program = this->program();
+        QStringList args = this->arguments();
+        QList<char *> c_args;
+        c_args.push_back(strdup(qPrintable(program)));
+        for (const QString &arg : args)
+            c_args.push_back(strdup(qPrintable(arg)));
+        c_args.push_back(nullptr);
+        execve(qPrintable(program), c_args.data(), env);
+        qCritical() << "execve(" << program << ") failed:" << strerror(errno);
+        exit(1);
     }
 }

@@ -1,22 +1,5 @@
-/*
- * Qt Authentication library
- * Copyright (C) 2013 Martin Bříza <mbriza@redhat.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
-
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
- *
- */
+// Copyright (C) 2026 UnionTech Software Technology Co., Ltd.
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #ifndef DDM_AUTH_H
 #define DDM_AUTH_H
@@ -27,7 +10,7 @@
 #include <QtCore/QProcessEnvironment>
 
 namespace DDM {
-    class Pam;
+    class AuthPrivate;
     class UserSession;
 
     /** Authentication handler, manage login and session */
@@ -37,8 +20,11 @@ namespace DDM {
         Auth(QObject *parent, QString user);
         ~Auth();
 
-        /** Indicates whether the Auth is active (PAM module started) */
-        bool active{ false };
+        /** Indicates whether authenticated (authenticate() is called and succeed) */
+        bool authenticated{ false };
+
+        /** Indicates whether a session is opened with this handle */
+        bool sessionOpened{ false };
 
         /** Username. Must be set before authenticate() */
         QString user{};
@@ -55,8 +41,11 @@ namespace DDM {
         /** Virtual terminal number (e.g. 7 for tty7) */
         int tty{ 0 };
 
-        /** Logind session ID (the XDG_SESSION_ID env var) */
+        /** Logind session ID (the XDG_SESSION_ID env var). Positive values are valid */
         int xdgSessionId{ 0 };
+
+        /** PID of the child process. Positive values are valid */
+        qint64 sessionProcessId{ 0 };
 
     public Q_SLOTS:
         /**
@@ -68,31 +57,33 @@ namespace DDM {
         bool authenticate(const QByteArray &secret);
 
         /**
-         * Opens user session via PAM and returns the XDG_SESSION_ID.
-         * Must be called after authenticate().
+         * Starts user process, opens Logind session and returns the
+         * XDG_SESSION_ID. Must be called after authenticate().
          *
+         * @param command Command to execute as user process
          * @param env Environment variables to set for the session
-         * @return XDG_SESSION_ID on success, -1 on failure
+         * @param cookie XAuth cookie, must be provided if type=X11
+         * @return A valid XDG_SESSION_ID on success, zero or negative on failure
          */
-        int openSession(const QProcessEnvironment &env);
+        int openSession(const QString &command,
+                        QProcessEnvironment env,
+                        const QByteArray &cookie = QByteArray());
 
         /**
-         * Starts process inside opened session.
-         * Must be called after openSession().
-         * Only 1 process can be started per Auth instance,
-         * userProcessFinished() is emitted when the process ends.
-         * Implemented in UserSession.
+         * Close PAM session
+         * @return true on success, false on failure
+         */
+        bool closeSession();
+
+        /**
+         * Opens PAM session and returns the environment variables set
+         * by PAM modules. Must be called in the child process after
+         * fork()
          *
-         * @param command Command to exec
-         * @param cookie XAuth cookie (must be set for X11)
+         * @param sessionEnv Environment variables to set for the session
+         * @return result of pam_getenvlist on success, nullptr on failure
          */
-        void startUserProcess(const QString &command, const QByteArray &cookie = QByteArray());
-
-        /**
-         * Stop PAM, close opened session and end up user process.
-         * This will be automatically called in the destructor.
-         */
-        void stop();
+        char **openSessionInternal(const QProcessEnvironment &sessionEnv);
 
     Q_SIGNALS:
         /**
@@ -103,14 +94,22 @@ namespace DDM {
         void userProcessFinished(int status);
 
     private:
-        /** The PAM module */
-        Pam *m_pam{ nullptr };
+        /**
+         * Write utmp/wtmp/btmp records when a user logs in
+         *
+         * @param success  Was authentication successful
+         */
+        void utmpLogin(bool success);
+
+        /**
+         * Write utmp/wtmp records when a user logs out
+         */
+        void utmpLogout();
 
         /** The user process */
         UserSession *m_session{ nullptr };
 
-        /** Cached environment inside the opened logind session, for the user process */
-        QProcessEnvironment m_env{};
+        AuthPrivate *d{ nullptr };
     };
 }
 

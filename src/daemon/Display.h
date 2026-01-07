@@ -130,9 +130,6 @@ namespace DDM {
 
         /** Socket server for communication with Treeland */
         SocketServer *m_socketServer { nullptr };
-
-    private slots:
-        void userProcessFinished(int status);
     };
 }
 

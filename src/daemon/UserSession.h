@@ -29,11 +29,7 @@
 #include "Display.h"
 
 namespace DDM {
-    class Auth;
-    class XOrgUserHelper;
-    class WaylandHelper;
-    class UserSession : public QProcess
-    {
+    class UserSession : public QProcess {
         Q_OBJECT
     public:
         explicit UserSession(Auth *parent);
@@ -42,11 +38,6 @@ namespace DDM {
                    Display::DisplayServerType type,
                    const QByteArray &cookie = QByteArray());
         void stop();
-
-        /**
-         * Needed for getting the PID of a finished UserSession and calling HelperApp::utmpLogout
-         */
-        qint64 cachedProcessId = -1;
 
     private:
         // Don't call it directly, it will be invoked by the child process only
