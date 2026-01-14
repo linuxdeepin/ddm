@@ -173,7 +173,7 @@ const struct treeland_ddm_v1_listener treelandDDMListener {
 // wayland object binding
 
 void registerGlobal(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
-    if (strcmp(interface, "treeland_ddm") == 0) {
+    if (strcmp(interface, "treeland_ddm_v1") == 0) {
         auto connector = static_cast<TreelandConnector *>(data);
         auto ddm = static_cast<struct treeland_ddm_v1 *>(
             wl_registry_bind(registry, name, &treeland_ddm_v1_interface, version)
