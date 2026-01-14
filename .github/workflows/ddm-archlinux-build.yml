@@ -1,0 +1,103 @@
+name: Build ddm on Arch Linux
+
+# Dependencies are based on the official ArchLinux PKGBUILD
+# treeland-protocols-git is installed from source
+
+on:
+  push:
+
+  pull_request:
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Run in container
+        run: |
+          cat /etc/pacman.d/mirrorlist
+          pacman-key --init
+          pacman --noconfirm --noprogressbar -Syu
+
+      - name: Install base dependencies
+        run: |
+          pacman -S --noconfirm --noprogressbar base-devel bash gcc-libs glibc libxau pam qt6-base qt6-declarative systemd-libs ttf-font xorg-server xorg-xauth git extra-cmake-modules python-docutils qt6-tools treeland-protocols ninja
+
+      - name: Build and Install treeland-protocols
+        run: |
+          echo "Building treeland-protocols from source..."
+          git clone https://github.com/linuxdeepin/treeland-protocols.git --depth 1
+          cd treeland-protocols
+          cmake -B build \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_INSTALL_LIBEXECDIR=lib \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          cmake --install build
+          echo "✅ treeland-protocols built and installed from source"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure and Build ddm with ci preset
+        run: |
+          echo "Working directory:" $PWD
+          echo "Configuring ddm..."
+          cmake -B build -G Ninja \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror"
+          cmake --build build
+          echo "✅ ddm built successfully!"
+
+      - name: Install ddm to staging directory
+        run: |
+          echo "Installing ddm to staging directory..."
+          mkdir -p /tmp/ddm-install
+          DESTDIR=/tmp/ddm-install cmake --install build
+          echo "✅ ddm installed to staging directory"
+
+          echo "Installed files:"
+          find /tmp/ddm-install -type f | head -20
+          echo "Total files installed: $(find /tmp/ddm-install -type f | wc -l)"
+
+      - name: Create ddm installation package
+        run: |
+          cd /tmp/ddm-install
+
+          # Install zip if not available
+          pacman -S --noconfirm zip
+
+          # Create package info
+          echo "Creating package info..."
+          cat > PACKAGE_INFO.txt << EOF
+          Package: ddm-archlinux-build
+          Version: $(date +%Y%m%d-%H%M%S)
+          Architecture: x86_64
+          Built-on: Arch Linux
+          CMake-Config: -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
+
+          Installation Instructions:
+          1. Extract this package to /
+          2. Run: sudo ldconfig (if libraries are included)
+          3. Ensure dependencies are installed on target system
+
+          Files included in this package:
+          EOF
+          find . -type f | sort >> PACKAGE_INFO.txt
+
+          # Create the zip package
+          zip -r /tmp/ddm-archlinux-$(date +%Y%m%d-%H%M%S).zip .
+          echo "✅ ddm installation package created"
+
+          ls -la /tmp/ddm-archlinux-*.zip
+
+      - name: Upload ddm ArchLinux build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddm-archlinux-build
+          path: "/tmp/ddm-archlinux-*.zip"
+          if-no-files-found: error
+          retention-days: 30
