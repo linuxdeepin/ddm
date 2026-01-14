@@ -6,7 +6,7 @@
 
 struct wl_display;
 struct wl_callback;
-struct treeland_ddm;
+struct treeland_ddm_v1;
 
 namespace DDM {
 class TreelandConnector : QObject {
@@ -15,7 +15,7 @@ public:
     TreelandConnector();
     ~TreelandConnector();
     bool isConnected();
-    void setPrivateObject(struct treeland_ddm *ddm);
+    void setPrivateObject(struct treeland_ddm_v1 *ddm);
     void setSignalHandler();
     void connect(const QString socketPath);
 
@@ -29,6 +29,6 @@ public:
 private:
     struct wl_display *m_display { nullptr };
     QSocketNotifier *m_notifier { nullptr };
-    struct treeland_ddm *m_ddm { nullptr };
+    struct treeland_ddm_v1 *m_ddm { nullptr };
 };
 }

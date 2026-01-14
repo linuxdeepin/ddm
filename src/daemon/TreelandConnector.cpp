@@ -142,7 +142,7 @@ bool TreelandConnector::isConnected() {
     return m_ddm;
 }
 
-void TreelandConnector::setPrivateObject(struct treeland_ddm *ddm) {
+void TreelandConnector::setPrivateObject(struct treeland_ddm_v1 *ddm) {
     m_ddm = ddm;
 }
 
@@ -152,20 +152,20 @@ void TreelandConnector::setSignalHandler() {
 
 // Event implementation
 
-static void switchToVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm *ddm, int32_t vtnr) {
+static void switchToVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm_v1 *ddm, int32_t vtnr) {
     int fd = open(qPrintable(VirtualTerminal::path(vtnr)), O_RDWR | O_NOCTTY);
     if (ioctl(fd, VT_ACTIVATE, vtnr) < 0)
         qWarning("Failed to switch to VT %d: %s", vtnr, strerror(errno));
     close(fd);
 }
 
-static void acquireVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm *ddm, int32_t vtnr) {
+static void acquireVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm_v1 *ddm, int32_t vtnr) {
     int fd = open(qPrintable(VirtualTerminal::path(vtnr)), O_RDWR | O_NOCTTY);
     VirtualTerminal::handleVtSwitches(fd);
     close(fd);
 }
 
-const struct treeland_ddm_listener treelandDDMListener {
+const struct treeland_ddm_v1_listener treelandDDMListener {
     .switch_to_vt = switchToVt,
     .acquire_vt = acquireVt,
 };
@@ -175,10 +175,10 @@ const struct treeland_ddm_listener treelandDDMListener {
 void registerGlobal(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
     if (strcmp(interface, "treeland_ddm") == 0) {
         auto connector = static_cast<TreelandConnector *>(data);
-        auto ddm = static_cast<struct treeland_ddm *>(
-            wl_registry_bind(registry, name, &treeland_ddm_interface, version)
+        auto ddm = static_cast<struct treeland_ddm_v1 *>(
+            wl_registry_bind(registry, name, &treeland_ddm_v1_interface, version)
         );
-        treeland_ddm_add_listener(ddm, &treelandDDMListener, connector);
+        treeland_ddm_v1_add_listener(ddm, &treelandDDMListener, connector);
         connector->setPrivateObject(ddm);
         qDebug("Connected to treeland_ddm global object");
     }
@@ -225,7 +225,7 @@ void TreelandConnector::connect(QString socketPath) {
 
 void TreelandConnector::switchToGreeter() {
     if (isConnected()) {
-        treeland_ddm_switch_to_greeter(m_ddm);
+        treeland_ddm_v1_switch_to_greeter(m_ddm);
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call switchToGreeter");
@@ -234,7 +234,7 @@ void TreelandConnector::switchToGreeter() {
 
 void TreelandConnector::switchToUser(const QString username) {
     if (isConnected()) {
-        treeland_ddm_switch_to_user(m_ddm, qPrintable(username));
+        treeland_ddm_v1_switch_to_user(m_ddm, qPrintable(username));
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call switchToUser");
@@ -243,7 +243,7 @@ void TreelandConnector::switchToUser(const QString username) {
 
 void TreelandConnector::activateSession() {
     if (isConnected()) {
-        treeland_ddm_activate_session(m_ddm);
+        treeland_ddm_v1_activate_session(m_ddm);
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call activateSession");
@@ -252,7 +252,7 @@ void TreelandConnector::activateSession() {
 
 void TreelandConnector::deactivateSession() {
     if (isConnected()) {
-        treeland_ddm_deactivate_session(m_ddm);
+        treeland_ddm_v1_deactivate_session(m_ddm);
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call deactivateSession");
@@ -261,7 +261,7 @@ void TreelandConnector::deactivateSession() {
 
 void TreelandConnector::enableRender() {
     if (isConnected()) {
-        treeland_ddm_enable_render(m_ddm);
+        treeland_ddm_v1_enable_render(m_ddm);
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call enableRender");
@@ -270,7 +270,7 @@ void TreelandConnector::enableRender() {
 
 struct wl_callback *TreelandConnector::disableRender() {
     if (isConnected()) {
-        auto callback = treeland_ddm_disable_render(m_ddm);
+        auto callback = treeland_ddm_v1_disable_render(m_ddm);
         wl_display_flush(m_display);
         return callback;
     } else {
