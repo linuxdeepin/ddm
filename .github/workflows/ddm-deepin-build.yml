@@ -1,0 +1,87 @@
+name: Build ddm on Deepin crimson (independent)
+
+on:
+  push:
+
+  pull_request:
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    container: linuxdeepin/deepin:crimson
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          set -euxo pipefail
+
+          echo "deb [trusted=yes] http://mirrors.kernel.org/deepin/beige/ crimson main commercial community" > /etc/apt/sources.list
+          echo "deb-src [trusted=yes] http://mirrors.kernel.org/deepin/beige/ crimson main commercial community" >> /etc/apt/sources.list
+          rm -rf /etc/apt/sources.list.d
+
+          apt-get update
+          apt-get install -y devscripts equivs git
+
+          # Save the ddm workspace directory
+          DDM_DIR="$PWD"
+          echo "ddm workspace directory: $DDM_DIR"
+
+          # Build and install treeland-protocols locally (required build dependency not from repo)
+          echo "Building treeland-protocols from source (master)"
+          cd /tmp
+          if [ ! -d treeland-protocols ]; then
+            git clone --depth=1 --branch master --single-branch https://github.com/linuxdeepin/treeland-protocols.git
+          fi
+          cd treeland-protocols
+          mk-build-deps --install --remove --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control
+          dpkg-buildpackage -uc -us -b
+          apt-get install -y ../*.deb || dpkg -i ../*.deb || apt-get -f install -y
+          cd "$DDM_DIR"
+
+          # Install build-deps defined in ddm/debian/control
+          mk-build-deps --install --remove --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control
+
+      - name: Build ddm deb package
+        run: |
+          set -euxo pipefail
+
+          # Check build dependencies and diagnose missing packages
+          set +e
+          dpkg-checkbuilddeps 2> /tmp/ddm-builddeps.err
+          BUILDDEPS_RC=$?
+          set -e
+
+          if [ "$BUILDDEPS_RC" -ne 0 ]; then
+            echo "❌ Build dependencies check failed. Analyzing missing packages..."
+            cat /tmp/ddm-builddeps.err
+
+            # Extract and list each missing package with version requirements
+            echo ""
+            echo "Detailed missing packages analysis:"
+            grep -oP '(?<=Unmet build dependencies: ).*' /tmp/ddm-builddeps.err | tr ' ' '\n' | while read pkg; do
+              if [ -n "$pkg" ]; then
+                # Check if package exists in repos
+                apt-cache policy "$pkg" 2>/dev/null | head -20 || echo "Package '$pkg' not found in any repository"
+              fi
+            done
+          fi
+
+          dpkg-buildpackage -uc -us -b
+          echo "ddm deb package built successfully!"
+          ls -la ../
+
+      - name: Collect deb artifacts
+        run: |
+          set -euxo pipefail
+          mkdir -p dist
+          mv ../*.deb dist/
+          ls -la dist
+
+      - name: Upload ddm deb packages as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddm-deepin-deb-packages
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 30
