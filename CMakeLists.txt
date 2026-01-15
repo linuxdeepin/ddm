@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25.0)
 
 project(DDM
-    VERSION 0.2.0
+    VERSION 0.3.1
     LANGUAGES CXX C)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -11,11 +11,7 @@ set(CMAKE_AUTORCC ON)
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Set version
-set(DDM_VERSION_MAJOR 0)
-set(DDM_VERSION_MINOR 20)
-set(DDM_VERSION_PATCH 0)
-set(DDM_VERSION_STRING "${DDM_VERSION_MAJOR}.${DDM_VERSION_MINOR}.${DDM_VERSION_PATCH}")
-add_compile_definitions("DDM_VERSION=\"${DDM_VERSION_STRING}\"")
+add_compile_definitions("DDM_VERSION=\"${DDM_VERSION}\"")
 
 # Standard installation paths
 include(GNUInstallDirs)
@@ -72,7 +68,7 @@ pkg_check_modules(Systemd REQUIRED systemd)
 pkg_check_modules(LIBXAU REQUIRED "xau")
 
 # TreelandProtocols
-find_package(TreelandProtocols 0.5.0  REQUIRED)
+find_package(TreelandProtocols 0.5.3  REQUIRED)
 
 find_package(Qt6 CONFIG REQUIRED Core DBus Gui Qml Quick QuickControls2 LinguistTools Test QuickTest)
 qt_standard_project_setup(REQUIRES 6.6)
@@ -192,7 +188,7 @@ configure_package_config_file(
 # Configure version file
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/data/DDMConfigVersion.cmake"
-    VERSION ${DDM_VERSION_STRING}
+    VERSION ${DDM_VERSION}
     COMPATIBILITY SameMajorVersion
 )
 
