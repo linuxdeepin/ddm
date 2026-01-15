@@ -7,7 +7,7 @@ ddm configuration
 -----------------
 
 :Date: Dec 2025
-:Version: ddm @DDM_VERSION_STRING@
+:Version: ddm @DDM_VERSION@
 :Manual section: 5
 :Manual group: ddm
 
