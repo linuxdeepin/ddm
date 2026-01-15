@@ -3,7 +3,7 @@ SPDX-PackageName = "ddm"
 SPDX-PackageDownloadLocation = "https://github.com/linuxdeepin/ddm"
 
 [[annotations]]
-path = [".github/**", "garnix.yaml"]
+path = [".github/**", ".obs/**.yml", "garnix.yaml"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"
 SPDX-License-Identifier = "CC0-1.0"
