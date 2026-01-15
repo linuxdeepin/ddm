@@ -251,7 +251,7 @@ namespace DDM {
                                                      QDBusConnection::systemBus());
         auto reply = manager.GetSessionByPID(static_cast<uint>(sessionProcessId));
         reply.waitForFinished();
-        if (reply.error().isValid()) {
+        if (reply.isError()) {
             qWarning() << "[Auth] GetSessionByPID:" << reply.error().message();
             return -1;
         }

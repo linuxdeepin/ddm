@@ -366,6 +366,20 @@ namespace DDM {
                                                      Logind::managerPath(),
                                                      QDBusConnection::systemBus());
         manager.TerminateSession(QString::number(id));
+        QTimer::singleShot(2000, this, [this, id]() {
+            OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
+                                                         Logind::managerPath(),
+                                                         QDBusConnection::systemBus());
+            // Some child processes may linger
+            // (e.g. gnome-keyring-daemon), kill them to avoid the
+            // whole session stuck in closing state. Send SIGKILL
+            // directly may make systemd-logind be left in a bad state
+            // and cannot handle future login, so send SIGTERM
+            // instead.
+
+            // TODO: Find out why
+            manager.KillSession(QString::number(id), "all", 15);
+        });
     }
 
     void Display::unlock(QLocalSocket *socket, const QString &user, const QString &password) {
