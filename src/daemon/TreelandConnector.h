@@ -18,6 +18,7 @@ public:
     void setPrivateObject(struct treeland_ddm_v1 *ddm);
     void setSignalHandler();
     void connect(const QString socketPath);
+    void disconnect();
 
     void switchToGreeter();
     void switchToUser(const QString username);

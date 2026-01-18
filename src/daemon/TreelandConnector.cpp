@@ -196,11 +196,7 @@ const struct wl_registry_listener registryListener {
 };
 
 void TreelandConnector::connect(QString socketPath) {
-    if (m_display) {
-        wl_display_disconnect(m_display);
-        QObject::disconnect(m_notifier, &QSocketNotifier::activated, nullptr, nullptr);
-        delete m_notifier;
-    }
+    disconnect();
 
     m_display = wl_display_connect(qPrintable(socketPath));
     auto registry = wl_display_get_registry(m_display);
@@ -219,6 +215,14 @@ void TreelandConnector::connect(QString socketPath) {
         wl_display_dispatch_pending(m_display);
       wl_display_flush(m_display);
     });
+}
+
+void TreelandConnector::disconnect() {
+    if (m_display) {
+        m_notifier->setEnabled(false);
+        wl_display_disconnect(m_display);
+        delete m_notifier;
+    }
 }
 
 // Request wrapper

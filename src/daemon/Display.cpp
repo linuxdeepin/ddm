@@ -299,6 +299,7 @@ namespace DDM {
         } else if (session.xdgSessionType() == QLatin1String("x11")) {
             auth->type = X11;
 
+            daemonApp->treelandConnector()->disconnect();
             m_treeland->stop();
             QThread::msleep(500); // give some time to treeland to stop properly
 
@@ -316,6 +317,7 @@ namespace DDM {
         } else {
             auth->type = Wayland;
 
+            daemonApp->treelandConnector()->disconnect();
             m_treeland->stop();
             QThread::msleep(500); // give some time to treeland to stop properly
         }
