@@ -6,8 +6,9 @@
 
 #include "Display.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QProcessEnvironment>
+#include <QObject>
+#include <QProcessEnvironment>
+#include <QSocketNotifier>
 
 namespace DDM {
     class AuthPrivate;
@@ -44,8 +45,11 @@ namespace DDM {
         /** Logind session ID (the XDG_SESSION_ID env var). Positive values are valid */
         int xdgSessionId{ 0 };
 
-        /** PID of the child process. Positive values are valid */
-        qint64 sessionProcessId{ 0 };
+        /** PID of the session leader. Positive values are valid */
+        pid_t sessionLeaderPid{ 0 };
+
+        /** PID of the session process started by session leader. Positive values are valid */
+        qint64 sessionPid{ 0 };
 
     public Q_SLOTS:
         /**
@@ -81,17 +85,15 @@ namespace DDM {
          * fork()
          *
          * @param sessionEnv Environment variables to set for the session
-         * @return result of pam_getenvlist on success, nullptr on failure
+         * @return Environs retrieved from pam_getenvlist on success, std::nullopt on failure
          */
-        char **openSessionInternal(const QProcessEnvironment &sessionEnv);
+        std::optional<QProcessEnvironment> openSessionInternal(const QProcessEnvironment &sessionEnv);
 
     Q_SIGNALS:
         /**
-         * Emitted when the user process ends.
-         *
-         * @param status Exit code of the user process
+         * Emitted when the session process ends.
          */
-        void userProcessFinished(int status);
+        void sessionFinished();
 
     private:
         /**
@@ -106,8 +108,8 @@ namespace DDM {
          */
         void utmpLogout();
 
-        /** The user process */
-        UserSession *m_session{ nullptr };
+        /** Child process listener */
+        QSocketNotifier *m_notifier{ nullptr };
 
         AuthPrivate *d{ nullptr };
     };

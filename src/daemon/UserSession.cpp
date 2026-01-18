@@ -128,13 +128,7 @@ namespace DDM {
     }
 
     void UserSession::childModifier() {
-        // Open session
         Auth *auth = qobject_cast<Auth *>(parent());
-        char **env = auth->openSessionInternal(processEnvironment());
-        if (!env) {
-            qCritical() << "Failed to open PAM session in user session process";
-            _exit(1);
-        }
 
         // When the display server is part of the session, we leak the VT into
         // the session as stdin so that it stays open without races
@@ -176,7 +170,6 @@ namespace DDM {
                 }
             }
         }
-        VirtualTerminal::jumpToVt(auth->tty, false);
 
         // enter Linux namespaces
         for (const QString &ns: mainConfig.Namespaces.get()) {
@@ -318,17 +311,5 @@ namespace DDM {
             } else {
             qWarning() << "Could not redirect stdout";
         }
-
-        // We execve manually, to be able to pass the PAM environment
-        QString program = this->program();
-        QStringList args = this->arguments();
-        QList<char *> c_args;
-        c_args.push_back(strdup(qPrintable(program)));
-        for (const QString &arg : args)
-            c_args.push_back(strdup(qPrintable(arg)));
-        c_args.push_back(nullptr);
-        execve(qPrintable(program), c_args.data(), env);
-        qCritical() << "execve(" << program << ") failed:" << strerror(errno);
-        exit(1);
     }
 }

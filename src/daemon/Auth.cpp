@@ -11,6 +11,7 @@
 
 #include <pwd.h>
 #include <security/pam_appl.h>
+#include <signal.h>
 #include <unistd.h>
 #include <utmp.h>
 #include <utmpx.h>
@@ -26,7 +27,7 @@ namespace DDM {
         struct timeval tv;
 
         entry.ut_type = USER_PROCESS;
-        entry.ut_pid = sessionProcessId;
+        entry.ut_pid = sessionPid;
 
         // ut_line: vt
         if (tty > 0)
@@ -63,7 +64,7 @@ namespace DDM {
         struct timeval tv;
 
         entry.ut_type = DEAD_PROCESS;
-        entry.ut_pid = sessionProcessId;
+        entry.ut_pid = sessionPid;
 
         // ut_line: vt
         if (tty > 0)
@@ -164,27 +165,24 @@ namespace DDM {
     Auth::Auth(QObject *parent, QString user)
         : QObject(parent)
         , user(user)
-        , m_session(new UserSession(this))
-        , d(new AuthPrivate(this)) {
-        connect(m_session,
-                QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                this,
-                &Auth::userProcessFinished);
-    }
+        , d(new AuthPrivate(this)) {}
 
     Auth::~Auth() {
-        if (m_session->state() != QProcess::NotRunning)
-            m_session->stop();
         if (sessionOpened) {
+            delete m_notifier;
+            if (sessionPid > 0)
+                kill(sessionPid, SIGTERM);
+            if (sessionLeaderPid > 0)
+                kill(sessionLeaderPid, SIGTERM);
             closeSession();
             utmpLogout();
         }
         if (d->handle) {
             d->ret = pam_end(d->handle, d->ret);
             if (d->ret != PAM_SUCCESS)
-                qWarning() << "[Auth] end:" << pam_strerror(d->handle, d->ret);
+                qWarning() << "[Auth] PAM handle end with error!";
         }
-        qDebug() << "[Auth] Auth for user" << user << "ended.";
+        qInfo() << "[Auth] Auth for user" << user << "ended.";
     }
 
 #define CHECK_RET_AUTH                                                           \
@@ -196,11 +194,11 @@ namespace DDM {
     bool Auth::authenticate(const QByteArray &secret) {
         Q_ASSERT(!user.isEmpty());
 
-        qDebug() << "[Auth] Starting...";
+        qInfo() << "[Auth] Starting...";
         d->ret = pam_start("ddm", user.toLocal8Bit().constData(), &d->conv, &d->handle);
         CHECK_RET_AUTH
 
-        qDebug() << "[Auth] Authenticating user" << user;
+        qInfo() << "[Auth] Authenticating user" << user;
 
         // Set the secret, authenticate, then clear the secret
         // immediately to avoid leak
@@ -209,7 +207,7 @@ namespace DDM {
         *d->secretPtr = nullptr;
 
         CHECK_RET_AUTH
-        qDebug() << "[Auth] Authenticated.";
+        qInfo() << "[Auth] Authenticated.";
 
         d->ret = pam_acct_mgmt(d->handle, 0);
         CHECK_RET_AUTH
@@ -222,51 +220,109 @@ namespace DDM {
                           QProcessEnvironment env,
                           const QByteArray &cookie) {
         Q_ASSERT(authenticated);
-        // Insert necessary environment
-        struct passwd *pw = getpwnam(qPrintable(user));
-        if (pw) {
-            env.insert(QStringLiteral("HOME"), QString::fromLocal8Bit(pw->pw_dir));
-            env.insert(QStringLiteral("PWD"), QString::fromLocal8Bit(pw->pw_dir));
-            env.insert(QStringLiteral("SHELL"), QString::fromLocal8Bit(pw->pw_shell));
-            env.insert(QStringLiteral("USER"), QString::fromLocal8Bit(pw->pw_name));
-            env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
-        }
-        m_session->setProcessEnvironment(env);
 
-        // RUN!!!
-        m_session->start(command, type, cookie);
-        if (!m_session->waitForStarted()) {
-            qWarning() << "[Auth] Failed to start user process.";
+        int pipefd[2];
+        if (pipe(pipefd) == -1) {
+            qWarning() << "[Auth] pipe failed:" << strerror(errno);
             return -1;
         }
-        sessionOpened = true;
 
-        // cache pid for session end
-        sessionProcessId = m_session->processId();
-        // write successful login to utmp/wtmp
-        utmpLogin(true);
-        // Get XDG_SESSION_ID via Logind
-        OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
-                                                     Logind::managerPath(),
-                                                     QDBusConnection::systemBus());
-        auto reply = manager.GetSessionByPID(static_cast<uint>(sessionProcessId));
-        reply.waitForFinished();
-        if (reply.isError()) {
-            qWarning() << "[Auth] GetSessionByPID:" << reply.error().message();
+        // Here is most safe place to jump VT
+        VirtualTerminal::jumpToVt(tty, false);
+
+        sessionLeaderPid = fork();
+        switch (sessionLeaderPid) {
+        case -1: {
+            // Fork failed
+            qWarning() << "[Auth] fork failed:" << strerror(errno);
+            close(pipefd[0]);
+            close(pipefd[1]);
             return -1;
         }
-        QDBusObjectPath path = reply.value();
-        OrgFreedesktopLogin1SessionInterface session(Logind::serviceName(),
-                                                     path.path(),
-                                                     QDBusConnection::systemBus());
-        bool ok;
-        xdgSessionId = session.property("Id").toInt(&ok);
-        if (!ok) {
-            qWarning() << "[Auth] Failed to get XDG_SESSION_ID for user" << user;
-            return -1;
+        case 0: {
+            // Child (session leader) process
+            close(pipefd[0]);
+
+            // Insert necessary environment
+            struct passwd *pw = getpwnam(qPrintable(user));
+            if (pw) {
+                env.insert(QStringLiteral("HOME"), QString::fromLocal8Bit(pw->pw_dir));
+                env.insert(QStringLiteral("PWD"), QString::fromLocal8Bit(pw->pw_dir));
+                env.insert(QStringLiteral("SHELL"), QString::fromLocal8Bit(pw->pw_shell));
+                env.insert(QStringLiteral("USER"), QString::fromLocal8Bit(pw->pw_name));
+                env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
+            }
+
+            // Open session
+            auto sessionEnv = openSessionInternal(env);
+            if (!sessionEnv.has_value()) {
+                qCritical() << "[SessionLeader] Failed to open session. Exit now.";
+                exit(1);
+            }
+            env = *sessionEnv;
+
+            // Retrieve XDG_SESSION_ID
+            xdgSessionId = env.value(QStringLiteral("XDG_SESSION_ID")).toInt();
+            if (xdgSessionId <= 0) {
+                qCritical() << "[SessionLeader] Invalid XDG_SESSION_ID from pam_open_session()";
+                exit(1);
+            }
+            write(pipefd[1], &xdgSessionId, sizeof(int));
+
+            // RUN!!!
+            UserSession session(this);
+            session.setProcessEnvironment(env);
+            session.start(command, type, cookie);
+            if (!session.waitForStarted()) {
+                qCritical() << "[SessionLeader] Failed to start session process. Exit now.";
+                exit(1);
+            }
+
+            // Send session PID to parent
+            sessionPid = session.processId();
+            write(pipefd[1], &sessionPid, sizeof(qint64));
+            qInfo() << "[SessionLeader] Session started with PID" << sessionPid;
+
+            session.waitForFinished(-1);
+
+            // Handle session end
+            if (session.exitStatus() == QProcess::CrashExit) {
+                qCritical() << "[SessionLeader] Session process crashed. Exit now.";
+                exit(1);
+            }
+            qInfo() << "[SessionLeader] Session process finished with exit code"
+                    << session.exitCode() << ". Exiting.";
+            exit(session.exitCode());
         }
-        qDebug() << "[Auth] Session opened with XDG_SESSION_ID =" << xdgSessionId;
-        return xdgSessionId;
+        default: {
+            // Parent process
+            close(pipefd[1]);
+
+            if (read(pipefd[0], &xdgSessionId, sizeof(int)) < 0) {
+                qWarning() << "[Auth] Failed to read XDG_SESSION_ID from child process:" << strerror(errno);
+                close(pipefd[0]);
+                return -1;
+            }
+            if (read(pipefd[0], &sessionPid, sizeof(qint64)) < 0) {
+                qWarning() << "[Auth] Failed to read session PID from child process:" << strerror(errno);
+                close(pipefd[0]);
+                return -1;
+            }
+            utmpLogin(true);
+
+            // Monitor child process ends
+            m_notifier = new QSocketNotifier(pipefd[0], QSocketNotifier::Read);
+            connect(m_notifier, &QSocketNotifier::activated, this, [this, pipefd] {
+                close(pipefd[0]);
+                m_notifier->setEnabled(false);
+                m_notifier->deleteLater();
+                Q_EMIT sessionFinished();
+            });
+
+            sessionOpened = true;
+            return xdgSessionId;
+        }
+        }
     }
 
 #define CHECK_RET_CLOSE                                                          \
@@ -279,7 +335,7 @@ namespace DDM {
             qWarning() << "[Auth] closeSession: Session was not opened.";
             return true;
         }
-        qDebug() << "[Auth] Closing session for user" << user;
+        qWarning() << "[Auth] Closing session for user" << user;
 
         d->ret = pam_close_session(d->handle, 0);
         CHECK_RET_CLOSE
@@ -288,28 +344,27 @@ namespace DDM {
         d->ret = pam_setcred(d->handle, PAM_DELETE_CRED);
         CHECK_RET_CLOSE
 
-        qDebug() << "[Auth] Session closed.";
+        qInfo() << "[Auth] Session closed.";
         return true;
     }
 
 #define CHECK_RET_OPEN                                                                  \
     if (d->ret != PAM_SUCCESS) {                                                        \
         qWarning() << "[Auth] openSessionInternal:" << pam_strerror(d->handle, d->ret); \
-        return nullptr;                                                                 \
+        return std::nullopt;                                                            \
     }
-    char **Auth::openSessionInternal(const QProcessEnvironment &sessionEnv) {
-        qDebug() << "[Auth] Opening session for user" << user;
+    std::optional<QProcessEnvironment> Auth::openSessionInternal(const QProcessEnvironment &sessionEnv) {
+        qInfo() << "[Auth] Opening session for user" << user;
 
         d->ret = pam_setcred(d->handle, PAM_ESTABLISH_CRED);
         CHECK_RET_OPEN
 
         // Set PAM_TTY
-        QString tty = VirtualTerminal::path(sessionEnv.value(QStringLiteral("XDG_VTNR")).toInt());
-        d->ret = pam_set_item(d->handle, PAM_TTY, qPrintable(tty));
+        QString vtPath = VirtualTerminal::path(tty);
+        d->ret = pam_set_item(d->handle, PAM_TTY, qPrintable(vtPath));
         CHECK_RET_OPEN
 
         // Set PAM_XDISPLAY
-        QString display = sessionEnv.value(QStringLiteral("DISPLAY"));
         if (!display.isEmpty()) {
             d->ret = pam_set_item(d->handle, PAM_XDISPLAY, qPrintable(display));
             CHECK_RET_OPEN
@@ -326,9 +381,22 @@ namespace DDM {
         d->ret = pam_open_session(d->handle, 0);
         CHECK_RET_OPEN
 
-        qDebug() << "[Auth] Session opened.";
+        qInfo() << "[Auth] Session opened.";
 
-        return pam_getenvlist(d->handle);
+        // Retrieve env vars in new session
+        QProcessEnvironment env;
+        char **envlist = pam_getenvlist(d->handle);
+        if (envlist) {
+            for (int i = 0; envlist[i] != nullptr; ++i) {
+                QString str = QString::fromLocal8Bit(envlist[i]);
+                int equalPos = str.indexOf('=');
+                if (equalPos != -1)
+                    env.insert(str.left(equalPos), str.mid(equalPos + 1));
+                free(envlist[i]);
+            }
+            free(envlist);
+        }
+        return env;
     }
 } // namespace DDM
 
