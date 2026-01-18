@@ -5,8 +5,10 @@
 
 #include "UserSession.h"
 
+#include "DaemonApp.h"
 #include "Login1Manager.h"
 #include "Login1Session.h"
+#include "SignalHandler.h"
 #include "VirtualTerminal.h"
 
 #include <pwd.h>
@@ -228,7 +230,7 @@ namespace DDM {
         }
 
         // Here is most safe place to jump VT
-        VirtualTerminal::jumpToVt(tty, false);
+        VirtualTerminal::jumpToVt(tty, false, false);
 
         sessionLeaderPid = fork();
         switch (sessionLeaderPid) {
@@ -242,6 +244,17 @@ namespace DDM {
         case 0: {
             // Child (session leader) process
             close(pipefd[0]);
+
+            // Delete old signal handlers, in order to close old fds
+            // which are shared with the parent process.
+            delete daemonApp->signalHandler();
+
+            // Restore default SIGINT and SIGTERM handlers. We need
+            // the signal hander to terminate ourself, since we're
+            // going to enter an infinite waiting loop and no one can
+            // interrupt us after fork(), except the signal handler.
+            signal(SIGINT, SIG_DFL);
+            signal(SIGTERM, SIG_DFL);
 
             // Insert necessary environment
             struct passwd *pw = getpwnam(qPrintable(user));
