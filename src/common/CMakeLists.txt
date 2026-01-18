@@ -5,7 +5,6 @@ set(PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/src/common/MessageHandler.h
     ${CMAKE_SOURCE_DIR}/src/common/Messages.h
     ${CMAKE_SOURCE_DIR}/src/common/Session.h
-    ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.h
     ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.h
     ${CMAKE_SOURCE_DIR}/src/common/VirtualTerminal.h
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.h
@@ -17,7 +16,6 @@ set(SRCS
     ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.cpp
     ${CMAKE_SOURCE_DIR}/src/common/Configuration.cpp
     ${CMAKE_SOURCE_DIR}/src/common/Session.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/common/VirtualTerminal.cpp
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.cpp

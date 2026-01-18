@@ -172,8 +172,7 @@ namespace DDM {
             return;
 
         for (auto *auth : std::as_const(auths)) {
-            disconnect(auth, &Auth::userProcessFinished, nullptr, nullptr);
-            daemonApp->displayManager()->RemoveSession(auth->sessionId);
+            disconnect(auth, &Auth::sessionFinished, nullptr, nullptr);
             delete auth;
         }
         auths.clear();
@@ -338,8 +337,8 @@ namespace DDM {
             activateSession(auth->user, xdgSessionId);
         }
 
-        connect(auth, &Auth::userProcessFinished, this, [this, auth](int status) {
-            qWarning() << "Session for user" << auth->user << "finished with status" << status;
+        connect(auth, &Auth::sessionFinished, this, [this, auth]() {
+            qWarning() << "Session for user" << auth->user << "finished";
             auths.removeAll(auth);
             daemonApp->displayManager()->RemoveSession(auth->sessionId);
             delete auth;
@@ -355,7 +354,7 @@ namespace DDM {
     void Display::logout([[maybe_unused]] QLocalSocket *socket, int id) {
         for (Auth *auth : std::as_const(auths)) {
             if (auth->xdgSessionId == id) {
-                disconnect(auth, &Auth::userProcessFinished, nullptr, nullptr);
+                disconnect(auth, &Auth::sessionFinished, nullptr, nullptr);
                 auths.removeAll(auth);
                 daemonApp->displayManager()->RemoveSession(auth->sessionId);
                 delete auth;
@@ -366,20 +365,6 @@ namespace DDM {
                                                      Logind::managerPath(),
                                                      QDBusConnection::systemBus());
         manager.TerminateSession(QString::number(id));
-        QTimer::singleShot(2000, this, [this, id]() {
-            OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
-                                                         Logind::managerPath(),
-                                                         QDBusConnection::systemBus());
-            // Some child processes may linger
-            // (e.g. gnome-keyring-daemon), kill them to avoid the
-            // whole session stuck in closing state. Send SIGKILL
-            // directly may make systemd-logind be left in a bad state
-            // and cannot handle future login, so send SIGTERM
-            // instead.
-
-            // TODO: Find out why
-            manager.KillSession(QString::number(id), "all", 15);
-        });
     }
 
     void Display::unlock(QLocalSocket *socket, const QString &user, const QString &password) {

@@ -24,7 +24,6 @@
 #include "DisplayManager.h"
 #include "PowerManager.h"
 #include "SeatManager.h"
-#include "SignalHandler.h"
 #include "TreelandConnector.h"
 
 #include "MessageHandler.h"
@@ -77,18 +76,10 @@ namespace DDM {
         connect(m_seatManager, &SeatManager::seatCreated, m_displayManager, &DisplayManager::AddSeat);
         connect(m_seatManager, &SeatManager::seatRemoved, m_displayManager, &DisplayManager::RemoveSeat);
 
-        // create signal handler
-        m_signalHandler = new SignalHandler(this);
-
-        // quit when SIGINT, SIGTERM received
-        connect(m_signalHandler, &SignalHandler::sigintReceived, this, &DaemonApp::quit);
-        connect(m_signalHandler, &SignalHandler::sigtermReceived, this, &DaemonApp::quit);
-
         m_treelandConnector = new TreelandConnector();
         // log message
         qDebug() << "Starting...";
 
-        // initialize seats only after signals are connected
         m_seatManager->initialize();
     }
 
@@ -106,10 +97,6 @@ namespace DDM {
 
     SeatManager *DaemonApp::seatManager() const {
         return m_seatManager;
-    }
-
-    SignalHandler *DaemonApp::signalHandler() const {
-        return m_signalHandler;
     }
 
     TreelandConnector *DaemonApp::treelandConnector() const {
