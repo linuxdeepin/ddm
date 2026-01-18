@@ -38,14 +38,14 @@ namespace DDM {
     public:
         explicit DaemonApp(int &argc, char **argv);
 
-        static DaemonApp *instance() { return self; }
+        static inline DaemonApp *instance() { return self; }
 
         QString hostName() const;
-        DisplayManager *displayManager() const;
-        PowerManager *powerManager() const;
-        SeatManager *seatManager() const;
-        SignalHandler *signalHandler() const;
-        TreelandConnector *treelandConnector() const;
+        inline DisplayManager *displayManager() const { return m_displayManager; };
+        inline PowerManager *powerManager() const { return m_powerManager; };
+        inline SeatManager *seatManager() const { return m_seatManager; };
+        inline SignalHandler *signalHandler() const { return m_signalHandler; };
+        inline TreelandConnector *treelandConnector() const { return m_treelandConnector; };
 
         void backToNormal();
 

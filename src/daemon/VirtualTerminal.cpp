@@ -22,6 +22,9 @@
 
 #include "VirtualTerminal.h"
 
+#include "DaemonApp.h"
+#include "SignalHandler.h"
+
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
@@ -78,23 +81,23 @@ namespace DDM {
         std::function<void()> onAcquireFunction = nullptr;
         std::function<void()> onReleaseFunction = nullptr;
 
-        static void onAcquireDisplay([[maybe_unused]] int signal) {
-            if (onAcquireFunction) {
-                onAcquireFunction();
-            } else {
-              int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-              ioctl(fd, VT_RELDISP, VT_ACKACQ);
-              close(fd);
-            }
-        }
-
-        static void onReleaseDisplay([[maybe_unused]] int signal) {
-            if (onReleaseFunction) {
-                onReleaseFunction();
-            } else {
-              int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-              ioctl(fd, VT_RELDISP, 1);
-              close(fd);
+        static void onVtSignal(int signal) {
+            if (signal == RELEASE_DISPLAY_SIGNAL) {
+                if (onReleaseFunction) {
+                    onReleaseFunction();
+                } else {
+                    int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
+                    ioctl(fd, VT_RELDISP, 1);
+                    close(fd);
+                }
+            } else if (signal == ACQUIRE_DISPLAY_SIGNAL) {
+                if (onAcquireFunction) {
+                    onAcquireFunction();
+                } else {
+                    int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
+                    ioctl(fd, VT_RELDISP, VT_ACKACQ);
+                    close(fd);
+                }
             }
         }
 
@@ -111,8 +114,9 @@ namespace DDM {
                 ok = false;
             }
 
-            signal(RELEASE_DISPLAY_SIGNAL, onReleaseDisplay);
-            signal(ACQUIRE_DISPLAY_SIGNAL, onAcquireDisplay);
+            daemonApp->signalHandler()->addCustomSignal(RELEASE_DISPLAY_SIGNAL);
+            daemonApp->signalHandler()->addCustomSignal(ACQUIRE_DISPLAY_SIGNAL);
+            QObject::connect(daemonApp->signalHandler(), &SignalHandler::customSignalReceived, onVtSignal);
 
             return ok;
         }

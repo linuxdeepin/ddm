@@ -33,6 +33,7 @@ set(DAEMON_SOURCES
     SocketServer.cpp
     TreelandConnector.cpp
     UserSession.cpp
+    VirtualTerminal.cpp
     XorgDisplayServer.cpp
     TreelandDisplayServer.cpp
     ${TREELAND_DDM_SOURCE}

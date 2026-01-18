@@ -321,9 +321,7 @@ namespace DDM {
         }
 
         // Open Logind session & Exec the desktop process
-        VirtualTerminal::setVtSignalHandler(nullptr, nullptr);
         int xdgSessionId = auth->openSession(session.exec(), env, cookie);
-        daemonApp->treelandConnector()->setSignalHandler();
 
         if (xdgSessionId <= 0) {
             qCritical() << "Failed to open logind session for user" << user;
@@ -352,15 +350,13 @@ namespace DDM {
     }
 
     void Display::logout([[maybe_unused]] QLocalSocket *socket, int id) {
-        for (Auth *auth : std::as_const(auths)) {
-            if (auth->xdgSessionId == id) {
-                disconnect(auth, &Auth::sessionFinished, nullptr, nullptr);
-                auths.removeAll(auth);
-                daemonApp->displayManager()->RemoveSession(auth->sessionId);
-                delete auth;
-                break;
-            }
-        }
+        // Do not kill the session leader process before
+        // TerminateSession! Logind will only kill the session's
+        // cgroup (session_stop_scope) when the session is not in
+        // "stopping" state, killing the session leader beforehand
+        // will put the session in "stopping" early.
+
+        // https://github.com/systemd/systemd/blob/main/src/login/logind-session.c#L938
         OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                      Logind::managerPath(),
                                                      QDBusConnection::systemBus());
