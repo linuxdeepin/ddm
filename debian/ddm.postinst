@@ -7,38 +7,11 @@ set -e
 THIS_PACKAGE=ddm
 DEFAULT_DISPLAY_MANAGER_FILE=/etc/X11/default-display-manager
 
-# creating dde group if he isn't already there
-if ! getent group dde >/dev/null; then
-    addgroup --system dde
-fi
+# creating dde user & group if he isn't already there
+systemd-sysusers
 
-# creating dde user if he isn't already there
-if ! getent passwd dde >/dev/null; then
-    adduser --system --ingroup dde --home /var/lib/ddm dde
-    usermod -c "Simple Wayland Display Manager" dde
-    usermod -d "/var/lib/ddm"                   dde
-    usermod -g "dde"                            dde
-    usermod -s "/bin/false"                     dde
-fi
-
-# ensure dde is in dde video render groups
-# required for upgrading from v23
-for group in dde video render; do
-    usermod -a -G $group dde
-done
-
-if [ ! -e /var/lib/ddm ]; then
-    # If dde was purged while running, the home dir gets removed but the user
-    # remains (as deluser refuses to delete a user that's in use).
-    mkdir -p /var/lib/ddm
-fi
-
-if [ -d /var/lib/ddm ]; then
-    # There has been a -R in version prior to 0.19
-    # but this opens up symlink attacks. Remove it.
-    chown dde:dde /var/lib/ddm
-    chmod 0750 /var/lib/ddm
-fi
+# creating directories required
+systemd-tmpfiles --create
 
 # debconf is not a registry, so we only fiddle with the default file if it
 # does not exist

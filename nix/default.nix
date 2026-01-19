@@ -8,7 +8,6 @@
 , qttools
 , wrapQtAppsHook
 , qtbase
-, pixman
 , pam
 , libxcrypt
 , treeland-protocols
@@ -51,7 +50,6 @@ stdenv.mkDerivation (finalAttrs: {
 
   buildInputs = [
     qtbase
-    pixman
     pam
     libxcrypt
     treeland-protocols
@@ -72,9 +70,8 @@ stdenv.mkDerivation (finalAttrs: {
 
     # we still want to run the DM on VT 7 for the time being, as 1-6 are
     # occupied by getties by default
-    "-DSDDM_INITIAL_VT=7"
+    "-DDDM_INITIAL_VT=7"
 
-    "-DQT_IMPORTS_DIR=${placeholder "out"}/${qtbase.qtQmlPrefix}"
     "-DCMAKE_INSTALL_SYSCONFDIR=${placeholder "out"}/etc"
     "-DSYSTEMD_SYSTEM_UNIT_DIR=${placeholder "out"}/lib/systemd/system"
     "-DSYSTEMD_SYSUSERS_DIR=${placeholder "out"}/lib/sysusers.d"

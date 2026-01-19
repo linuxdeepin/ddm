@@ -31,12 +31,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#ifdef HAVE_JOURNALD
 #include <systemd/sd-journal.h>
-#endif
 
 namespace DDM {
-#ifdef HAVE_JOURNALD
     static void journaldLogger(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
         int priority = LOG_INFO;
         switch (type) {
@@ -67,7 +64,6 @@ namespace DDM {
                                        context.function ? context.function : "unknown",
                                        "%s", qPrintable(msg));
     }
-#endif
 
     static void standardLogger(QtMsgType type, const QString &msg) {
         static QFile file(QStringLiteral(LOG_FILE));
@@ -126,7 +122,6 @@ namespace DDM {
     }
 
     static void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &prefix, const QString &msg) {
-#ifdef HAVE_JOURNALD
         // don't log to journald if running interactively, this is likely
         // the case when running ddm in test mode
         static bool isInteractive = isatty(STDERR_FILENO) && qgetenv("USER") != "dde";
@@ -135,7 +130,6 @@ namespace DDM {
             journaldLogger(type, context, msg);
             return;
         }
-#endif
         // prepend program name
         QString logMessage = prefix + msg;
 
@@ -145,14 +139,6 @@ namespace DDM {
 
     void DaemonMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
         messageHandler(type, context, QStringLiteral("DAEMON: "), msg);
-    }
-
-    void HelperMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
-        messageHandler(type, context, QStringLiteral("HELPER: "), msg);
-    }
-
-    void GreeterMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
-        messageHandler(type, context, QStringLiteral("GREETER: "), msg);
     }
 }
 

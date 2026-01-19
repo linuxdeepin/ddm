@@ -3,20 +3,15 @@ Priority: optional
 Maintainer: justforlxz <zhangdingyuan@deepin.org>
 Build-Depends: debhelper-compat (= 13),
                cmake (>= 3.4~),
-               pkg-config,
                extra-cmake-modules (>= 1.4.0~),
                libpam0g-dev,
                libsystemd-dev [linux-any],
+               libwayland-dev,
                libxau-dev,
+               pkg-config,
                qt6-base-dev (>= 6.6.1~),
-               qt6-declarative-dev (>= 6.6.1~),
-               qt6-tools-dev,
-               qt6-tools-dev-tools (>= 6.6.1~),
-               qt6-wayland,
-               qt6-wayland-dev,
-               qt6-wayland-private-dev,
-               treeland-protocols,
                systemd [linux-any],
+               treeland-protocols,
 Standards-Version: 4.6.0
 Section: libs
 Homepage: https://github.com/linuxdeepin/ddm.git
@@ -29,22 +24,9 @@ Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         qml6-module-qtquick,
-         qml6-module-qtquick-controls,
-         qml6-module-qtquick-layouts,
-         qml6-module-qtqml-workerscript,
-         qml6-module-qtquick-templates,
-         qml6-module-qtquick-particles,
-         qml6-module-qtquick-dialogs,
-         qml6-module-qtquick-window,
-         qml6-module-qt5compat-graphicaleffects,
-         qml6-module-qtquick-effects,
-         qml6-module-qt-labs-folderlistmodel,
-         adduser,
          seatd,
-         qt6-wayland,
-         libqt6svg6,
-Recommends: libpam-systemd, xwayland
+         treeland,
+         libpam-systemd,
 Description: a modern display manager for Wayland sessions aiming to be fast, simple and beautiful.
 
 Package: libddm

@@ -1,9 +1,3 @@
-include_directories(
-    ${LIBXAU_INCLUDE_DIRS}
-)
-
-pkg_search_module(WAYLAND REQUIRED IMPORTED_TARGET wayland-client)
-
 # Generate treeland-ddm protocol files
 set(TREELAND_DDM_HEADER ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.h)
 set(TREELAND_DDM_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.c)
@@ -69,18 +63,11 @@ target_link_libraries(ddm
     PRIVATE
         common
     PUBLIC
-        Qt${QT_MAJOR_VERSION}::DBus
-        Qt${QT_MAJOR_VERSION}::Network
-        Qt${QT_MAJOR_VERSION}::Qml
-        ${PAM_LIBRARIES}
-        PkgConfig::WAYLAND
+        Qt6::DBus
+        Qt6::Network
+        PkgConfig::Pam
+        PkgConfig::LibSystemd
+        PkgConfig::WaylandClient
 )
-
-if(JOURNALD_FOUND)
-    target_link_libraries(ddm
-        PUBLIC
-            ${JOURNALD_LIBRARIES}
-    )
-endif()
 
 install(TARGETS ddm DESTINATION "${CMAKE_INSTALL_BINDIR}")
