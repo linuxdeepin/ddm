@@ -280,7 +280,10 @@ namespace DDM {
                 qCritical() << "[SessionLeader] Invalid XDG_SESSION_ID from pam_open_session()";
                 exit(1);
             }
-            write(pipefd[1], &xdgSessionId, sizeof(int));
+            if (write(pipefd[1], &xdgSessionId, sizeof(int)) != sizeof(int)) {
+                qCritical() << "[SessionLeader] Failed to write XDG_SESSION_ID to parent process!";
+                exit(1);
+            }
 
             // RUN!!!
             UserSession session(this);
@@ -293,7 +296,10 @@ namespace DDM {
 
             // Send session PID to parent
             sessionPid = session.processId();
-            write(pipefd[1], &sessionPid, sizeof(qint64));
+            if (write(pipefd[1], &sessionPid, sizeof(qint64)) != sizeof(qint64)) {
+                qCritical() << "[SessionLeader] Failed to write session PID to parent process!";
+                exit(1);
+            }
             qInfo() << "[SessionLeader] Session started with PID" << sessionPid;
 
             session.waitForFinished(-1);

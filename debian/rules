@@ -16,10 +16,6 @@ include /usr/share/dpkg/architecture.mk
 
 DDM_CMAKE_ARGS = -DDBUS_CONFIG_FILENAME="ddm_org.freedesktop.DisplayManager.conf"
 
-ifneq ($(DEB_HOST_ARCH_OS),linux)
-  DDM_CMAKE_ARGS += -DNO_SYSTEMD=ON -DENABLE_JOURNALD=OFF
-endif
-
 %:
 	dh $@
 

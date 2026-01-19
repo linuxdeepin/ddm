@@ -39,14 +39,10 @@
             shellHook =
               let
                 makeQtpluginPath = pkgs.lib.makeSearchPathOutput "out" pkgs.qt6.qtbase.qtPluginPrefix;
-                makeQmlpluginPath = pkgs.lib.makeSearchPathOutput "out" pkgs.qt6.qtbase.qtQmlPrefix;
               in
               ''
                 #export WAYLAND_DEBUG=1
-                export QT_PLUGIN_PATH=${makeQtpluginPath (with pkgs.qt6; [ qtbase qtdeclarative qtquick3d qtimageformats qtwayland qt5compat qtsvg ])}
-                export QML2_IMPORT_PATH=${makeQmlpluginPath (with pkgs.qt6; [ qtdeclarative qtquick3d qt5compat ]
-                                                            ++ [ dde-nixos.packages.${system}.qt6.dtkdeclarative ] )}
-                export QML_IMPORT_PATH=$QML2_IMPORT_PATH
+                export QT_PLUGIN_PATH=${makeQtpluginPath (with pkgs.qt6; [ qtbase ])}
               '';
           };
         }

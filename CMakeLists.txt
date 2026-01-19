@@ -20,7 +20,7 @@ include(FeatureSummary)
 
 # Options
 option(BUILD_MAN_PAGES "Build man pages" OFF)
-option(ENABLE_JOURNALD "Enable logging to journald" ON)
+option(WERROR "Build with -Werror" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,6 +32,9 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH};${ECM_MODU
 
 # Definitions
 add_definitions(-Wall -Wextra)
+if (WERROR)
+    add_definitions(-Werror)
+endif()
 
 # Default build type
 if(NOT CMAKE_BUILD_TYPE)
@@ -56,21 +59,28 @@ if(NOT DEFINED CMAKE_INSTALL_LOCALSTATEDIR)
 endif()
 
 # PKG-CONFIG
-find_package(PkgConfig)
+find_package(PkgConfig REQUIRED)
 
 # PAM
-find_package(PAM REQUIRED)
+pkg_search_module(Pam REQUIRED IMPORTED_TARGET pam)
 
 # Systemd
-pkg_check_modules(Systemd REQUIRED systemd)
+pkg_search_module(Systemd REQUIRED IMPORTED_TARGET systemd)
+
+# libsystemd
+pkg_search_module(LibSystemd REQUIRED IMPORTED_TARGET libsystemd)
 
 # XAU
-pkg_check_modules(LIBXAU REQUIRED "xau")
+pkg_search_module(LibXau REQUIRED IMPORTED_TARGET xau)
+
+# Wayland client
+pkg_search_module(WaylandClient REQUIRED IMPORTED_TARGET wayland-client)
 
 # TreelandProtocols
 find_package(TreelandProtocols 0.5.3  REQUIRED)
 
-find_package(Qt6 CONFIG REQUIRED Core DBus Gui Qml Quick QuickControls2 LinguistTools Test QuickTest)
+# Qt6
+find_package(Qt6 CONFIG REQUIRED Core DBus Network)
 qt_standard_project_setup(REQUIRES 6.6)
 
 # Uninstall target
@@ -79,21 +89,6 @@ if ("${ECM_VERSION}" VERSION_LESS "1.7.0")
                    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
                    IMMEDIATE @ONLY)
     add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
-endif()
-
-add_definitions(-DHAVE_SYSTEMD)
-set(CMAKE_AUTOMOC_MOC_OPTIONS -DHAVE_SYSTEMD)
-
-# libsystemd-journal was merged into libsystemd in 209
-pkg_check_modules(JOURNALD "libsystemd")
-
-if(ENABLE_JOURNALD)
-    if(JOURNALD_FOUND)
-        add_definitions(-DHAVE_JOURNALD)
-        set(CMAKE_AUTOMOC_MOC_OPTIONS -DHAVE_JOURNALD)
-    else()
-        message(WARNING "Disable journald support for lack of libsystemd-journal")
-    endif()
 endif()
 
 if (NOT DEFINED SYSTEMD_SYSTEM_UNIT_DIR)
@@ -111,8 +106,6 @@ endif()
 set(HALT_COMMAND "/usr/bin/systemctl poweroff")
 set(REBOOT_COMMAND "/usr/bin/systemctl reboot")
 
-add_feature_info("journald" JOURNALD_FOUND "journald support")
-
 set(RUNTIME_DIR_DEFAULT "/run/ddm")
 
 # Set constants
@@ -120,7 +113,6 @@ set(DATA_INSTALL_DIR            "${CMAKE_INSTALL_FULL_DATADIR}/ddm"             
 set(DBUS_CONFIG_DIR             "${CMAKE_INSTALL_FULL_SYSCONFDIR}/dbus-1/system.d"       CACHE PATH      "DBus config files directory")
 set(STATE_DIR                   "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/ddm"      CACHE PATH      "State directory")
 set(RUNTIME_DIR                 "${RUNTIME_DIR_DEFAULT}"                            CACHE PATH      "Runtime data storage directory")
-set(QML_INSTALL_DIR             "${QT_IMPORTS_DIR}"                                 CACHE PATH      "QML component installation directory")
 
 set(SESSION_COMMAND             "${DATA_INSTALL_DIR}/scripts/Xsession"              CACHE PATH      "Script to execute when starting the X11 desktop session")
 set(WAYLAND_SESSION_COMMAND     "${DATA_INSTALL_DIR}/scripts/wayland-session"       CACHE PATH      "Script to execute when starting the Wayland desktop session")

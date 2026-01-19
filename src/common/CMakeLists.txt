@@ -33,10 +33,9 @@ set_target_properties(common PROPERTIES
 
 target_link_libraries(common
     PRIVATE
-        Qt${QT_MAJOR_VERSION}::DBus
-        Qt${QT_MAJOR_VERSION}::Network
-        Qt${QT_MAJOR_VERSION}::Qml
-        ${LIBXAU_LINK_LIBRARIES}
+        Qt6::DBus
+        Qt6::Network
+        PkgConfig::LibXau
 )
 
 target_include_directories(common INTERFACE
