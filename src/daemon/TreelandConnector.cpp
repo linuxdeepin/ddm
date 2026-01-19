@@ -205,15 +205,14 @@ void TreelandConnector::connect(QString socketPath) {
 
     wl_display_roundtrip(m_display);
 
-    while (wl_display_prepare_read(m_display) != 0)
-        wl_display_dispatch_pending(m_display);
-    wl_display_flush(m_display);
     m_notifier = new QSocketNotifier(wl_display_get_fd(m_display), QSocketNotifier::Read);
     QObject::connect(m_notifier, &QSocketNotifier::activated, this, [this] {
-      wl_display_read_events(m_display);
-      while (wl_display_prepare_read(m_display) != 0)
-        wl_display_dispatch_pending(m_display);
-      wl_display_flush(m_display);
+        if (wl_display_dispatch(m_display) == -1 || wl_display_flush(m_display) == -1) {
+            if (errno != EAGAIN) {
+                qWarning("Treeland connection lost!");
+                disconnect();
+            }
+        }
     });
 }
 
