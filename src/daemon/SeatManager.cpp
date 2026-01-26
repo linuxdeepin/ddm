@@ -19,7 +19,7 @@
 
 #include "SeatManager.h"
 
-#include "Configuration.h"
+#include "Config.h"
 #include "DaemonApp.h"
 #include "Display.h"
 

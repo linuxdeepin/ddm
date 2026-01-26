@@ -19,7 +19,7 @@
 
 #include "DaemonApp.h"
 
-#include "Configuration.h"
+#include "Config.h"
 #include "Constants.h"
 #include "DisplayManager.h"
 #include "PowerManager.h"
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
     // spit a complete config file on stdout and quit on demand
     if (arguments.contains(QStringLiteral("--example-config"))) {
         DDM::mainConfig.wipe();
-        QTextStream(stdout) << DDM::mainConfig.toConfigFull();
+        QTextStream(stdout) << DDM::mainConfig.defaultConfig();
         return EXIT_SUCCESS;
     }
 

@@ -28,7 +28,7 @@
 #include <QtCore/QtGlobal>
 #include <QtCore/QStringView>
 
-#include "Configuration.h"
+#include "Config.h"
 #include "Session.h"
 
 const QString s_entryExtention = QStringLiteral(".desktop");
@@ -201,11 +201,11 @@ namespace DDM {
 
         switch (type) {
         case WaylandSession:
-            sessionDirs = mainConfig.Wayland.SessionDir.get();
+            sessionDirs = mainConfig.get<QStringList>("Wayland", "SessionDir");
             m_xdgSessionType = QStringLiteral("wayland");
             break;
         case X11Session:
-            sessionDirs = mainConfig.X11.SessionDir.get();
+            sessionDirs = mainConfig.get<QStringList>("X11", "SessionDir");
             m_xdgSessionType = QStringLiteral("x11");
             break;
         default:

@@ -22,7 +22,7 @@
 #include "Display.h"
 
 #include "Auth.h"
-#include "Configuration.h"
+#include "Config.h"
 #include "DaemonApp.h"
 #include "DisplayManager.h"
 #include "XorgDisplayServer.h"
@@ -257,14 +257,14 @@ namespace DDM {
 
         // save last user and last session
         DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
-        if (mainConfig.Users.RememberLastUser.get())
-            stateConfig.Last.User.set(auth->user);
+        if (mainConfig.get<bool>("Users", "RememberLastUser"))
+            stateConfig.set("Last", "User", auth->user);
         else
-            stateConfig.Last.User.setDefault();
-        if (mainConfig.Users.RememberLastSession.get())
-            stateConfig.Last.Session.set(session.fileName());
+            stateConfig.setDefault("Last", "User");
+        if (mainConfig.get<bool>("Users", "RememberLastSession"))
+            stateConfig.set("Last", "Session", session.fileName());
         else
-            stateConfig.Last.Session.setDefault();
+            stateConfig.setDefault("Last", "Session");
         stateConfig.save();
 
         // Prepare session environment
@@ -276,7 +276,7 @@ namespace DDM {
         env.insert(QStringLiteral("XDG_SESSION_PATH"), daemonApp->displayManager()->sessionPath(sessionId));
         auth->sessionId = sessionId;
 
-        env.insert(QStringLiteral("PATH"), mainConfig.Users.DefaultPath.get());
+        env.insert(QStringLiteral("PATH"), mainConfig.get<QString>("Users", "DefaultPath"));
         env.insert(QStringLiteral("DESKTOP_SESSION"), session.desktopSession());
         if (!session.desktopNames().isEmpty())
             env.insert(QStringLiteral("XDG_CURRENT_DESKTOP"), session.desktopNames());
@@ -385,10 +385,10 @@ namespace DDM {
 
         // Save last user
         DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
-        if (mainConfig.Users.RememberLastUser.get())
-            stateConfig.Last.User.set(user);
+        if (mainConfig.get<bool>("Users", "RememberLastUser"))
+            stateConfig.set("Last", "User", user);
         else
-            stateConfig.Last.User.setDefault();
+            stateConfig.setDefault("Last", "User");
         stateConfig.save();
 
         // Find the auth that started the session, which contains full informations

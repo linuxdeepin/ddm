@@ -23,7 +23,7 @@
 #include <QSocketNotifier>
 
 #include "Auth.h"
-#include "Configuration.h"
+#include "Config.h"
 #include "TreelandConnector.h"
 #include "UserSession.h"
 #include "VirtualTerminal.h"
@@ -56,7 +56,7 @@ namespace DDM {
 
         switch (type) {
         case Display::Treeland: {
-            setProgram(mainConfig.Single.SessionCommand.get());
+            setProgram(mainConfig.get<QString>("Single", "SessionCommand"));
             setArguments(QStringList{ command });
             qInfo() << "Starting Wayland user session:" << program() << command;
             QProcess::start();
@@ -92,13 +92,13 @@ namespace DDM {
             setProcessEnvironment(env);
 
             qInfo() << "Starting X11 user session:" << command;
-            setProgram(mainConfig.X11.SessionCommand.get());
+            setProgram(mainConfig.get<QString>("X11", "SessionCommand"));
             setArguments(QStringList{ command });
             QProcess::start();
             return;
         }
         case Display::Wayland: {
-            setProgram(mainConfig.Wayland.SessionCommand.get());
+            setProgram(mainConfig.get<QString>("Wayland", "SessionCommand"));
             setArguments(QStringList{ command });
             qInfo() << "Starting Wayland user session:" << program() << command;
             QProcess::start();
@@ -172,7 +172,7 @@ namespace DDM {
         }
 
         // enter Linux namespaces
-        for (const QString &ns: mainConfig.Namespaces.get()) {
+        for (const QString &ns: mainConfig.get<QStringList>("Namespaces")) {
             qInfo() << "Entering namespace" << ns;
             int fd = ::open(qPrintable(ns), O_RDONLY);
             if (fd < 0) {
@@ -285,8 +285,8 @@ namespace DDM {
         QString sessionLog = QStringLiteral("%1/%2")
             .arg(QString::fromLocal8Bit(pw.pw_dir))
             .arg(auth->type == Display::X11
-                 ? mainConfig.X11.SessionLogFile.get()
-                 : mainConfig.Wayland.SessionLogFile.get());
+                 ? mainConfig.get<QString>("X11", "SessionLogFile")
+                 : mainConfig.get<QString>("Wayland", "SessionLogFile"));
 
         // create the path
         QFileInfo finfo(sessionLog);
