@@ -220,10 +220,16 @@ void TreelandConnector::connect(QString socketPath) {
 
 void TreelandConnector::disconnect() {
     if (m_display) {
-        m_notifier->setEnabled(false);
+        if (m_notifier)
+            m_notifier->setEnabled(false);
         wl_display_disconnect(m_display);
-        delete m_notifier;
+        if (m_notifier) {
+            m_notifier->deleteLater();
+            m_notifier = nullptr;
+        }
+        m_display = nullptr;
     }
+    m_ddm = nullptr;
 }
 
 // Request wrapper
