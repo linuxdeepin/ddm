@@ -8,10 +8,10 @@ THIS_PACKAGE=ddm
 DEFAULT_DISPLAY_MANAGER_FILE=/etc/X11/default-display-manager
 
 # creating dde user & group if he isn't already there
-systemd-sysusers
+systemd-sysusers /usr/lib/sysusers.d/dde.conf
 
 # creating directories required
-systemd-tmpfiles --create
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/ddm.conf
 
 # debconf is not a registry, so we only fiddle with the default file if it
 # does not exist
