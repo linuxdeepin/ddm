@@ -1,3 +1,16 @@
+ddm (0.3.2) unstable; urgency=medium
+
+  * fix: fix ddm crash on treeland crash
+  * fix: fix wayland client dispatch loop
+  * chore: better wayland client event dispatch loop
+  * chore: clean dependencies
+  * fix: fix ddm high resource occupation after starting X11 session
+  * chore: add clang-format guide
+  * fix: use async-signal-safe functions in mandatory phase
+  * fix: second user cannot login & misbehaved logout
+
+ -- rewine <luhongxu@uniontech.com>  Thu, 29 Jan 2026 20:33:21 +0800
+
 ddm (0.3.1) unstable; urgency=medium
 
   * fix: fix cannot login more than 1 user
