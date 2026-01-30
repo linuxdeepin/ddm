@@ -25,54 +25,61 @@
 #include "Configuration.h"
 #include "DaemonApp.h"
 #include "DisplayManager.h"
-#include "XorgDisplayServer.h"
-#include "TreelandDisplayServer.h"
+#include "Messages.h"
 #include "SeatManager.h"
 #include "SocketServer.h"
-#include "Messages.h"
 #include "SocketWriter.h"
 #include "TreelandConnector.h"
+#include "TreelandDisplayServer.h"
+#include "XorgDisplayServer.h"
 
+#include "config.h"
+#include "Login1Manager.h"
+#include "VirtualTerminal.h"
+
+#include <QDBusConnection>
 #include <QDebug>
 #include <QFile>
-#include <QTimer>
 #include <QLocalSocket>
+#include <QScopeGuard>
+#include <QTimer>
 
+#include <fcntl.h>
 #include <linux/vt.h>
 #include <pwd.h>
 #include <qstringliteral.h>
-#include <unistd.h>
-#include <sys/time.h>
-
+#include <systemd/sd-login.h>
 #include <sys/ioctl.h>
-#include <fcntl.h>
-
-#include <QDBusConnection>
-#include <QDBusMessage>
-#include <QDBusReply>
-
-#include "Login1Manager.h"
-#include "Login1Session.h"
-#include "VirtualTerminal.h"
-#include "config.h"
+#include <sys/time.h>
+#include <unistd.h>
 
 #define STRINGIFY(x) #x
 
 namespace DDM {
     static bool isTtyInUse(const QString &desiredTty) {
-        if (Logind::isAvailable()) {
-            OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
-            auto reply = manager.ListSessions();
-            reply.waitForFinished();
-
-            const auto info = reply.value();
-            for(const SessionInfo &s : info) {
-                OrgFreedesktopLogin1SessionInterface session(Logind::serviceName(), s.sessionPath.path(), QDBusConnection::systemBus());
-                if (desiredTty == session.tTY() && session.state() != QLatin1String("closing")) {
-                    qDebug() << "tty" << desiredTty << "already in use by" << session.user().path.path() << session.state()
-                                      << session.display() << session.desktop() << session.vTNr();
-                    return true;
-                }
+        char **sessions = nullptr;
+        auto guard = qScopeGuard([&sessions] {
+            if (sessions) {
+                for (char **s = sessions; s && *s; ++s)
+                    free(*s);
+                free(sessions);
+            }
+        });
+        sd_get_sessions(&sessions);
+        for (char **s = sessions; s && *s; ++s) {
+            char *tty = nullptr;
+            char *state = nullptr;
+            auto guard2 = qScopeGuard([&tty, &state] {
+                if (tty)
+                    free(tty);
+                if (state)
+                    free(state);
+            });
+            if (sd_session_get_tty(*s, &tty) < 0 || sd_session_get_state(*s, &state) < 0)
+                continue;
+            if (desiredTty == tty && strcmp(state, "closing") != 0) {
+                qDebug() << "tty" << desiredTty << "already in use by session" << *s;
+                return true;
             }
         }
         return false;
