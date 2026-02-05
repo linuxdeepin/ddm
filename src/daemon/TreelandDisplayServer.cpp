@@ -82,9 +82,3 @@ void TreelandDisplayServer::onLoginFailed(const QString &user) {
         SocketWriter(greeter) << quint32(DaemonMessages::LoginFailed) << user;
     }
 }
-
-void TreelandDisplayServer::onLoginSucceeded(const QString &user) {
-    for (auto greeter : m_greeterSockets) {
-        SocketWriter(greeter) << quint32(DaemonMessages::LoginSucceeded) << user;
-    }
-}
