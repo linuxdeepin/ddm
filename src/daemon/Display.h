@@ -100,12 +100,12 @@ namespace DDM {
 
         void connected(QLocalSocket *socket);
         void login(QLocalSocket *socket,
-                   const QString &user, const QString &password,
+                   const QString &user,
+                   const QString &password,
                    const Session &session);
-        void logout(QLocalSocket *socket,
-                    int id);
-        void unlock(QLocalSocket *socket,
-                   const QString &user, const QString &password);
+        void logout(QLocalSocket *socket, int id);
+        void lock(QLocalSocket *socket, int id);
+        void unlock(QLocalSocket *socket, const QString &user, const QString &password);
 
     signals:
         /** Emitted when stop() */
@@ -116,7 +116,6 @@ namespace DDM {
         /////////////////////////////////////////////////////
         
         void loginFailed(QLocalSocket *socket, const QString &user);
-        void loginSucceeded(QLocalSocket *socket, const QString &user);
 
     private:
         /** Indicates whether the display is started */

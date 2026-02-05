@@ -32,6 +32,7 @@ namespace DDM {
         Hibernate,
         HybridSleep,
         BackToNormal,
+        Lock,
         Unlock,
         Logout,
     };
@@ -45,7 +46,6 @@ namespace DDM {
     enum class DaemonMessages {
         HostName,
         Capabilities,
-        LoginSucceeded,
         LoginFailed,
         InformationMessage,
         UserActivateMessage,

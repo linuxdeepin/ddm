@@ -163,6 +163,15 @@ namespace DDM {
                     emit logout(socket, id);
                 }
                 break;
+                case GreeterMessages::Lock : {
+                    // log message
+                    qDebug() << "Message received from greeter: Lock";
+                    int id;
+
+                    input >> id;
+                    emit lock(socket, id);
+                }
+                break;
                 case GreeterMessages::Unlock : {
                     // log message
                     qDebug() << "Message received from greeter: Unlock";
@@ -230,10 +239,6 @@ namespace DDM {
 
     void SocketServer::loginFailed(QLocalSocket *socket, const QString &user) {
         SocketWriter(socket) << quint32(DaemonMessages::LoginFailed) << user;
-    }
-
-    void SocketServer::loginSucceeded(QLocalSocket *socket, const QString &user) {
-        SocketWriter(socket) << quint32(DaemonMessages::LoginSucceeded) << user;
     }
 
     void SocketServer::informationMessage(QLocalSocket *socket, const QString &message) {
