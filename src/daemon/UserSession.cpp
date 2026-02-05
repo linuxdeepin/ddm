@@ -58,7 +58,7 @@ namespace DDM {
         case Display::Treeland: {
             setProgram(mainConfig.Single.SessionCommand.get());
             setArguments(QStringList{ command });
-            qInfo() << "Starting Wayland user session:" << program() << command;
+            qInfo() << "Starting Treeland session:" << program() << command;
             QProcess::start();
             closeWriteChannel();
             closeReadChannel(QProcess::StandardOutput);
