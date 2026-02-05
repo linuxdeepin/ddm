@@ -23,7 +23,6 @@ namespace DDM {
         void stop();
         void activateUser(const QString &user, int xdgSessionId);
         void onLoginFailed(const QString &user);
-        void onLoginSucceeded(const QString &user);
 
     private:
         SocketServer *m_socketServer;

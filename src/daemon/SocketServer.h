@@ -48,7 +48,6 @@ namespace DDM {
     public slots:
         void informationMessage(QLocalSocket *socket, const QString &message);
         void loginFailed(QLocalSocket *socket, const QString &user);
-        void loginSucceeded(QLocalSocket *socket, const QString &user);
 
     signals:
         void login(QLocalSocket *socket,
@@ -56,6 +55,8 @@ namespace DDM {
                    const Session &session);
         void logout(QLocalSocket *socket,
                     int id);
+        void lock(QLocalSocket *socket,
+                  int id);
         void unlock(QLocalSocket *socket,
                    const QString &user, const QString &password);
         void connected(QLocalSocket *socket);
