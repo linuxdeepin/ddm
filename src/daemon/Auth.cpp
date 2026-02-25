@@ -218,16 +218,18 @@ namespace DDM {
         return true;
     }
 
-    int Auth::openSession(const QString &command,
-                          QProcessEnvironment env,
-                          const QByteArray &cookie) {
+    QString Auth::openSession(const QString &command,
+                              QProcessEnvironment env,
+                              const QByteArray &cookie) {
         Q_ASSERT(authenticated);
 
         int pipefd[2];
         if (pipe(pipefd) == -1) {
             qWarning() << "[Auth] pipe failed:" << strerror(errno);
-            return -1;
+            return {};
         }
+
+        char xdgSessionId[128] = {};
 
         // Here is most safe place to jump VT
         VirtualTerminal::jumpToVt(tty, false, false);
@@ -239,7 +241,7 @@ namespace DDM {
             qWarning() << "[Auth] fork failed:" << strerror(errno);
             close(pipefd[0]);
             close(pipefd[1]);
-            return -1;
+            return {};
         }
         case 0: {
             // Child (session leader) process
@@ -275,57 +277,57 @@ namespace DDM {
             env = *sessionEnv;
 
             // Retrieve XDG_SESSION_ID
-            xdgSessionId = env.value(QStringLiteral("XDG_SESSION_ID")).toInt();
-            if (xdgSessionId <= 0) {
-                qCritical() << "[SessionLeader] Invalid XDG_SESSION_ID from pam_open_session()";
-                exit(1);
-            }
-            if (write(pipefd[1], &xdgSessionId, sizeof(int)) != sizeof(int)) {
+            session = env.value(QStringLiteral("XDG_SESSION_ID"));
+            QByteArray sessionBa = session.toLocal8Bit();
+            strcpy(xdgSessionId, sessionBa.constData());
+            if (write(pipefd[1], &xdgSessionId, sizeof(char) * 128) != sizeof(char) * 128) {
                 qCritical() << "[SessionLeader] Failed to write XDG_SESSION_ID to parent process!";
                 exit(1);
             }
 
             // RUN!!!
-            UserSession session(this);
-            session.setProcessEnvironment(env);
-            session.start(command, type, cookie);
-            if (!session.waitForStarted()) {
+            UserSession desktop(this);
+            desktop.setProcessEnvironment(env);
+            desktop.start(command, type, cookie);
+            if (!desktop.waitForStarted()) {
                 qCritical() << "[SessionLeader] Failed to start session process. Exit now.";
                 exit(1);
             }
 
             // Send session PID to parent
-            sessionPid = session.processId();
+            sessionPid = desktop.processId();
             if (write(pipefd[1], &sessionPid, sizeof(qint64)) != sizeof(qint64)) {
                 qCritical() << "[SessionLeader] Failed to write session PID to parent process!";
                 exit(1);
             }
             qInfo() << "[SessionLeader] Session started with PID" << sessionPid;
 
-            session.waitForFinished(-1);
+            desktop.waitForFinished(-1);
 
             // Handle session end
-            if (session.exitStatus() == QProcess::CrashExit) {
+            if (desktop.exitStatus() == QProcess::CrashExit) {
                 qCritical() << "[SessionLeader] Session process crashed. Exit now.";
                 exit(1);
             }
             qInfo() << "[SessionLeader] Session process finished with exit code"
-                    << session.exitCode() << ". Exiting.";
-            exit(session.exitCode());
+                    << desktop.exitCode() << ". Exiting.";
+            exit(desktop.exitCode());
         }
         default: {
             // Parent process
             close(pipefd[1]);
 
-            if (read(pipefd[0], &xdgSessionId, sizeof(int)) < 0) {
+            if (read(pipefd[0], &xdgSessionId, sizeof(char) * 128) != sizeof(char) * 128) {
                 qWarning() << "[Auth] Failed to read XDG_SESSION_ID from child process:" << strerror(errno);
                 close(pipefd[0]);
-                return -1;
+                return {};
             }
+            session = QString::fromLocal8Bit(xdgSessionId);
+
             if (read(pipefd[0], &sessionPid, sizeof(qint64)) < 0) {
                 qWarning() << "[Auth] Failed to read session PID from child process:" << strerror(errno);
                 close(pipefd[0]);
-                return -1;
+                return {};
             }
             utmpLogin(true);
 
@@ -339,7 +341,7 @@ namespace DDM {
             });
 
             sessionOpened = true;
-            return xdgSessionId;
+            return session;
         }
         }
     }
