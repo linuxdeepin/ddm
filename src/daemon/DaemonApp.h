@@ -30,7 +30,6 @@ namespace DDM {
     class PowerManager;
     class SeatManager;
     class SignalHandler;
-    class TreelandConnector;
 
     class DaemonApp : public QCoreApplication {
         Q_OBJECT
@@ -45,7 +44,6 @@ namespace DDM {
         inline PowerManager *powerManager() const { return m_powerManager; };
         inline SeatManager *seatManager() const { return m_seatManager; };
         inline SignalHandler *signalHandler() const { return m_signalHandler; };
-        inline TreelandConnector *treelandConnector() const { return m_treelandConnector; };
 
         void backToNormal();
 
@@ -61,7 +59,6 @@ namespace DDM {
         PowerManager *m_powerManager { nullptr };
         SeatManager *m_seatManager { nullptr };
         SignalHandler *m_signalHandler { nullptr };
-        TreelandConnector *m_treelandConnector { nullptr };
     };
 }
 

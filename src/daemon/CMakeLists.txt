@@ -24,7 +24,6 @@ set(DAEMON_SOURCES
     DisplayManager.cpp
     PowerManager.cpp
     SeatManager.cpp
-    SocketServer.cpp
     TreelandConnector.cpp
     UserSession.cpp
     VirtualTerminal.cpp

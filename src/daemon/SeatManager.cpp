@@ -22,6 +22,7 @@
 #include "Configuration.h"
 #include "DaemonApp.h"
 #include "Display.h"
+#include "TreelandConnector.h"
 
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -163,7 +164,7 @@ namespace DDM {
         for (auto display : std::as_const(displays)) {
             if (display->name == name) {
                 // switch to greeter
-                display->activateSession("dde", 0);
+                display->connector->switchToGreeter();
                 return;
             }
         }
