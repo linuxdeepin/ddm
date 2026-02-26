@@ -1,4 +1,4 @@
-// Copyright (C) 2025 April Lu <apr3vau@outlook.com>.
+// Copyright (C) 2025-2026 UnionTech Software Technology Co., Ltd.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "TreelandConnector.h"
