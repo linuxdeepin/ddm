@@ -1,3 +1,13 @@
+ddm (0.3.3) unstable; urgency=medium
+
+  * chore: update copyright to 2026
+  * feat: Use Lock/Unlock signal from org.freedesktop.login1.Session for
+    session lock
+  * chore: replace org.freedesktop.login1 D-Bus call with sd-login API
+  * fix: avoid mistakenly create seat group on debian-based systems
+
+ -- rewine <luhongxu@uniontech.com>  Sat, 28 Feb 2026 13:59:25 +0800
+
 ddm (0.3.2) unstable; urgency=medium
 
   * fix: fix ddm crash on treeland crash
