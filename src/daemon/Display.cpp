@@ -28,8 +28,6 @@
 #include "DisplayManager.h"
 #include "Messages.h"
 #include "SeatManager.h"
-#include "SocketServer.h"
-#include "SocketWriter.h"
 #include "TreelandConnector.h"
 #include "TreelandDisplayServer.h"
 #include "XorgDisplayServer.h"
@@ -38,10 +36,11 @@
 #include "Login1Manager.h"
 #include "VirtualTerminal.h"
 
+#include "treeland-ddm-v2.h"
+
 #include <QDBusConnection>
 #include <QDebug>
 #include <QFile>
-#include <QLocalSocket>
 #include <QScopeGuard>
 #include <QTimer>
 
@@ -99,13 +98,13 @@ namespace DDM {
 
     Display::Display(SeatManager *parent, QString name)
         : QObject(parent)
-        , name(name)
-        , m_socketServer(new SocketServer(this)) {
+        , name(name) {
 
         // Create display server
         terminalId = fetchAvailableVt();
         qDebug("Using VT %d", terminalId);
-        m_treeland = new TreelandDisplayServer(m_socketServer, this);
+        m_treeland = new TreelandDisplayServer(this);
+        connector = new TreelandConnector(this);
 
         // Record current VT as ddm user session
         DaemonApp::instance()->displayManager()->AddSession(
@@ -113,62 +112,20 @@ namespace DDM {
             name,
             "dde",
             static_cast<uint>(VirtualTerminal::currentVt()));
-
-        // connect connected signal
-        connect(m_socketServer, &SocketServer::connected, this, &Display::connected);
-
-        // connect login signal
-        connect(m_socketServer, &SocketServer::login, this, &Display::login);
-
-        // connect logout signal
-        connect(m_socketServer, &SocketServer::logout, this, &Display::logout);
-
-        // connect lock signal
-        connect(m_socketServer, &SocketServer::lock, this, &Display::lock);
-
-        // connect unlock signal
-        connect(m_socketServer, &SocketServer::unlock,this, &Display::unlock);
-
-        // connect login result signals
-        connect(this, &Display::loginFailed, m_socketServer, &SocketServer::loginFailed);
     }
 
     Display::~Display() {
         stop();
     }
 
-    void Display::activateSession(const QString &user, int xdgSessionId) {
-        if (xdgSessionId <= 0 && user != QStringLiteral("dde")) {
-            qCritical() << "Invalid xdg session id" << xdgSessionId << "for user" << user;
-            return;
-        }
-
-        m_treeland->activateUser(user, xdgSessionId);
-
-        if (xdgSessionId > 0 && Logind::isAvailable()) {
-            OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
-            manager.ActivateSession(QString::number(xdgSessionId));
-        }
-    }
-
     bool Display::start() {
         if (m_started)
             return true;
 
-        VirtualTerminal::jumpToVt(terminalId, false);
+        VirtualTerminal::jumpToVt(terminalId, false, false);
         if (!m_treeland->start())
             return false;
-
-        // start socket server
-        m_socketServer->start("treeland");
-
-        // Update dbus info
-        DaemonApp::instance()->displayManager()->setAuthInfo(m_socketServer->socketAddress());
-
-        // change the owner and group of the socket to avoid permission denied errors
-        struct passwd *pw = getpwnam("dde");
-        if (pw && chown(qPrintable(m_socketServer->socketAddress()), pw->pw_uid, pw->pw_gid) == -1)
-            qWarning() << "Failed to change owner of the socket";
+        connector->connect();
 
         // set flags
         m_started = true;
@@ -187,11 +144,11 @@ namespace DDM {
         }
         auths.clear();
 
-        // stop socket server
-        m_socketServer->stop();
-
         if (m_x11Server)
             m_x11Server->stop();
+
+        // disconnect from treeland
+        connector->disconnect();
 
         // stop display server
         m_treeland->stop();
@@ -203,21 +160,10 @@ namespace DDM {
         emit stopped();
     }
 
-    void Display::connected(QLocalSocket *socket) {
-        // send logged in users (for possible crash recovery)
-        SocketWriter writer(socket);
-        for (Auth *auth : std::as_const(auths)) {
-            if (auth->sessionOpened)
-                writer << quint32(DaemonMessages::UserLoggedIn) << auth->user << auth->xdgSessionId;
-        }
-    }
-
-    void Display::login(QLocalSocket *socket,
-                        const QString &user, const QString &password,
-                        const Session &session) {
+    void Display::login(const QString &user, const QString &password, const Session &session) {
         if (user == QLatin1String("dde")) {
             qWarning() << "Login attempt for user dde";
-            emit loginFailed(socket, user);
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_INVALID_USER);
             return;
         }
 
@@ -237,20 +183,24 @@ namespace DDM {
 
         if (auth->authenticated) {
             qWarning() << "Existing authentication ongoing, aborting";
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_EXISTING_AUTHENTICATION_ONGOING);
             return;
         }
 
         // sanity check
         if (!session.isValid()) {
             qCritical() << "Invalid session" << session.fileName();
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_INVALID_SESSION);
             return;
         }
         if (session.xdgSessionType().isEmpty()) {
             qCritical() << "Failed to find XDG session type for session" << session.fileName();
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_INVALID_SESSION);
             return;
         }
         if (session.exec().isEmpty()) {
             qCritical() << "Failed to find command for session" << session.fileName();
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_INVALID_SESSION);
             return;
         }
 
@@ -260,7 +210,7 @@ namespace DDM {
         else
             auth->tty = terminalId;
         if (!auth->authenticate(password.toLocal8Bit())) {
-            Q_EMIT loginFailed(socket, user);
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_AUTHENTICATION_FAILED);
             return;
         }
 
@@ -313,7 +263,7 @@ namespace DDM {
             auth->type = X11;
 
             qInfo() << "Stopping Treeland";
-            daemonApp->treelandConnector()->disconnect();
+            connector->disconnect();
             m_treeland->stop();
             QThread::msleep(500); // give some time to treeland to stop properly
 
@@ -333,17 +283,18 @@ namespace DDM {
             auth->type = Wayland;
 
             qInfo() << "Stopping Treeland";
-            daemonApp->treelandConnector()->disconnect();
+            connector->disconnect();
             m_treeland->stop();
             QThread::msleep(500); // give some time to treeland to stop properly
         }
 
         // Open Logind session & Exec the desktop process
-        int xdgSessionId = auth->openSession(session.exec(), env, cookie);
+        QString xdgSessionId = auth->openSession(session.exec(), env, cookie);
 
-        if (xdgSessionId <= 0) {
+        if (xdgSessionId.isEmpty()) {
             qCritical() << "Failed to open logind session for user" << user;
             delete auth;
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_INTERNAL_ERROR);
             return;
         }
 
@@ -362,8 +313,8 @@ namespace DDM {
         qInfo() << "Successfully logged in user" << user;
     }
 
-    void Display::logout([[maybe_unused]] QLocalSocket *socket, int id) {
-        qDebug() << "Logout requested for session id" << id;
+    void Display::logout(const QString &session) {
+        qDebug() << "Logout requested for session" << session;
         // Do not kill the session leader process before
         // TerminateSession! Logind will only kill the session's
         // cgroup (session_stop_scope) when the session is not in
@@ -374,21 +325,21 @@ namespace DDM {
         OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                      Logind::managerPath(),
                                                      QDBusConnection::systemBus());
-        manager.TerminateSession(QString::number(id));
+        manager.TerminateSession(session);
     }
 
-    void Display::lock([[maybe_unused]] QLocalSocket *socket, int id) {
-        qDebug() << "Lock requested for session id" << id;
+    void Display::lock(const QString &session) {
+        qDebug() << "Lock requested for session" << session;
 
         OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                      Logind::managerPath(),
                                                      QDBusConnection::systemBus());
-        manager.LockSession(QString::number(id));
+        manager.LockSession(session);
     }
 
-    void Display::unlock(QLocalSocket *socket, const QString &user, const QString &password) {
+    void Display::unlock(const QString &user, const QString &password) {
         if (user == QLatin1String("dde")) {
-            emit loginFailed(socket, user);
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_INVALID_USER);
             return;
         }
 
@@ -400,7 +351,7 @@ namespace DDM {
         // immediately after use
         Auth auth(this, user);
         if (!auth.authenticate(password.toLocal8Bit())) {
-            Q_EMIT loginFailed(socket, user);
+            connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_AUTHENTICATION_FAILED);
             return;
         }
 
@@ -414,17 +365,17 @@ namespace DDM {
 
         // Find the auth that started the session, which contains full informations
         for (auto *auth : std::as_const(auths)) {
-            if (auth->user == user && auth->xdgSessionId > 0) {
+            if (auth->user == user && !auth->session.isEmpty()) {
                 OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                              Logind::managerPath(),
                                                              QDBusConnection::systemBus());
-                manager.UnlockSession(QString::number(auth->xdgSessionId));
-                VirtualTerminal::jumpToVt(auth->tty, false);
+                manager.UnlockSession(auth->session);
+                VirtualTerminal::jumpToVt(auth->tty, false, false);
                 qInfo() << "Successfully identified user" << user;
                 return;
             }
         }
         qWarning() << "No active session found for user" << user;
-        Q_EMIT loginFailed(socket, user);
+        connector->authenticationFailed(TREELAND_DDM_V2_AUTH_ERROR_INVALID_SESSION);
     }
 }

@@ -1,19 +1,19 @@
 # Generate treeland-ddm protocol files
-set(TREELAND_DDM_HEADER ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.h)
-set(TREELAND_DDM_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.c)
+set(TREELAND_DDM_HEADER ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v2.h)
+set(TREELAND_DDM_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v2.c)
 
 add_custom_command(
     OUTPUT ${TREELAND_DDM_HEADER}
-    COMMAND wayland-scanner client-header < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${TREELAND_DDM_HEADER}
-    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml
-    COMMENT "Generating treeland-ddm-v1.h"
+    COMMAND wayland-scanner client-header < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v2.xml > ${TREELAND_DDM_HEADER}
+    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v2.xml
+    COMMENT "Generating treeland-ddm-v2.h"
 )
 
 add_custom_command(
     OUTPUT ${TREELAND_DDM_SOURCE}
-    COMMAND wayland-scanner private-code < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${TREELAND_DDM_SOURCE}
-    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml
-    COMMENT "Generating treeland-ddm-v1.c"
+    COMMAND wayland-scanner private-code < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v2.xml > ${TREELAND_DDM_SOURCE}
+    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v2.xml
+    COMMENT "Generating treeland-ddm-v2.c"
 )
 
 configure_file(config.h.in config.h IMMEDIATE @ONLY)
@@ -24,7 +24,6 @@ set(DAEMON_SOURCES
     DisplayManager.cpp
     PowerManager.cpp
     SeatManager.cpp
-    SocketServer.cpp
     TreelandConnector.cpp
     UserSession.cpp
     VirtualTerminal.cpp
