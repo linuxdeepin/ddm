@@ -29,14 +29,12 @@
 
 #include "Session.h"
 
-class QLocalSocket;
-
 namespace DDM {
     class Auth;
-    class XorgDisplayServer;
-    class TreelandDisplayServer;
     class SeatManager;
-    class SocketServer;
+    class TreelandConnector;
+    class TreelandDisplayServer;
+    class XorgDisplayServer;
 
     /** Class represents a display (seat) */
     class Display : public QObject {
@@ -60,17 +58,6 @@ namespace DDM {
 
         ~Display();
 
-        /**
-         * Tell Treeland to activate a certain session.
-         *
-         * Called with user = "dde" and xdgSessionId <= 0
-         * will send Treeland into lockscreen.
-         *
-         * @param user Username
-         * @param xdgSessionId Logind session ID
-         */
-        void activateSession(const QString &user, int xdgSessionId);
-
         /** Seat name */
         QString name{};
 
@@ -79,6 +66,9 @@ namespace DDM {
 
         /** List of active authentications */
         QList<Auth *> auths;
+
+        /** Treeland connector */
+        TreelandConnector *connector{ nullptr };
 
     public slots:
         /**
@@ -99,24 +89,16 @@ namespace DDM {
         // Slots for socket to communicate with Treeland //
         ///////////////////////////////////////////////////
 
-        void connected(QLocalSocket *socket);
-        void login(QLocalSocket *socket,
-                   const QString &user,
+        void login(const QString &user,
                    const QString &password,
                    const Session &session);
-        void logout(QLocalSocket *socket, int id);
-        void lock(QLocalSocket *socket, int id);
-        void unlock(QLocalSocket *socket, const QString &user, const QString &password);
+        void logout(const QString &session);
+        void lock(const QString &session);
+        void unlock(const QString &session, const QString &password);
 
     signals:
         /** Emitted when stop() */
         void stopped();
-
-        /////////////////////////////////////////////////////
-        // Signals for socket to communicate with Treeland //
-        /////////////////////////////////////////////////////
-        
-        void loginFailed(QLocalSocket *socket, const QString &user);
 
     private:
         /** Indicates whether the display is started */
@@ -127,9 +109,6 @@ namespace DDM {
 
         /** X11 display server, if started */
         XorgDisplayServer *m_x11Server{ nullptr };
-
-        /** Socket server for communication with Treeland */
-        SocketServer *m_socketServer { nullptr };
     };
 }
 
