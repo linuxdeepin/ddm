@@ -13,6 +13,7 @@
 
 #include <pwd.h>
 #include <security/pam_appl.h>
+#include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <utmp.h>
@@ -265,6 +266,19 @@ namespace DDM {
                 env.insert(QStringLiteral("USER"), QString::fromLocal8Bit(pw->pw_name));
                 env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
             }
+
+            // PAM modules (e.g. pam_gnome_keyring) may fork() internally and
+            // call exit() instead of _exit() in the fork child, which triggers
+            // Qt's atexit cleanup (including libQt6DBus joining its dispatcher
+            // thread). After fork(), that thread doesn't exist, so the join
+            // blocks forever on a futex/semaphore.
+            //
+            // Register a pthread_atfork child handler here so that any
+            // grandchild processes spawned by PAM will have an atexit handler
+            // that runs _exit() first (LIFO), bypassing Qt's broken cleanup.
+            pthread_atfork(nullptr, nullptr, []() {
+                atexit([]() { _exit(0); });
+            });
 
             // Open session
             auto sessionEnv = openSessionInternal(env);
