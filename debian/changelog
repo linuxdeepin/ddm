@@ -1,3 +1,9 @@
+ddm (0.3.4) unstable; urgency=medium
+
+  * fix: register ddm as display manager via debconf
+
+ -- rewine <luhongxu@deepin.org>  Sat, 09 May 2026 14:40:49 +0800
+
 ddm (0.3.3) unstable; urgency=medium
 
   * chore: update copyright to 2026
