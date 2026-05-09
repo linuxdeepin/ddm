@@ -19,9 +19,8 @@ Rules-Requires-Root: no
 
 Package: ddm
 Section: libdevel
-#Provides: x-display-manager
+Provides: x-display-manager
 Architecture: any
-Multi-Arch: same
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          seatd,
