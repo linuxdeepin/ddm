@@ -34,6 +34,22 @@ case "$1" in
         fi
 
         ;;
+    remove)
+        # Update the display-manager.service symlink to point to the newly
+        # chosen display manager (written by prerm into DEFAULT_DISPLAY_MANAGER_FILE)
+        if [ -e "$DEFAULT_DISPLAY_MANAGER_FILE" ] && [ -d /etc/systemd/system/ ]; then
+            DM=$(basename "$(cat "$DEFAULT_DISPLAY_MANAGER_FILE")")
+            SERVICE=/lib/systemd/system/$DM.service
+            if [ -h "$DEFAULT_SERVICE" ] && [ "$(readlink "$DEFAULT_SERVICE")" = /dev/null ]; then
+                echo "Display manager service is masked" >&2
+            elif [ -e "$SERVICE" ]; then
+                ln -sf "$SERVICE" "$DEFAULT_SERVICE"
+            fi
+        elif [ -h "$DEFAULT_SERVICE" ] && [ ! -e "$DEFAULT_SERVICE" ]; then
+            # Dangling symlink, no other display-manager installed
+            rm -f "$DEFAULT_SERVICE"
+        fi
+        ;;
     abort-install|abort-upgrade)
         # roll back displacement of default display manager file
         if [ -e "$DEFAULT_DISPLAY_MANAGER_FILE.dpkg-tmp" ]; then

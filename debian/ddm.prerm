@@ -20,12 +20,16 @@ if [ "$1" = "remove" ] || [ "$1" = "deconfigure" ]; then
     # does the question still exist?
     if db_get shared/default-x-display-manager; then
       db_metaget shared/default-x-display-manager owners
-      db_subst shared/default-x-display-manager choices "$RET"
+      # Strip architecture qualifiers (e.g. "lightdm:amd64" -> "lightdm")
+      OWNERS_CLEAN=$(echo "$RET" | sed 's/:[[:alnum:]_-]*//g')
+      db_subst shared/default-x-display-manager choices "$OWNERS_CLEAN"
       db_get shared/default-x-display-manager
+      # Strip architecture qualifier from current value too
+      CURRENT_DM=$(echo "$RET" | sed 's/:[[:alnum:]_-]*//')
       # are we removing the currently selected display manager?
-      if [ "$THIS_PACKAGE" = "$RET" ]; then
+      if [ "$THIS_PACKAGE" = "$CURRENT_DM" ]; then
         if [ -e "$DEFAULT_DISPLAY_MANAGER_FILE" ]; then
-	  db_get "$RET"/daemon_name
+	  db_get "$THIS_PACKAGE"/daemon_name
 	  if [ "$(cat $DEFAULT_DISPLAY_MANAGER_FILE)" = "$RET" ]; then
 	    rm "$DEFAULT_DISPLAY_MANAGER_FILE"
 	  fi
@@ -38,9 +42,14 @@ if [ "$1" = "remove" ] || [ "$1" = "deconfigure" ]; then
         # to the new default display manager
         if [ ! -e $DEFAULT_DISPLAY_MANAGER_FILE ]; then
           db_get shared/default-x-display-manager
-          echo "Please be sure to run \"dpkg-reconfigure $RET\"."
-          db_get "$RET"/daemon_name
-          echo "$RET" > "$DEFAULT_DISPLAY_MANAGER_FILE"
+          # Strip any architecture qualifier from user's selection
+          NEW_DM=$(echo "$RET" | sed 's/:[[:alnum:]_-]*//')
+          echo "Please be sure to run \"dpkg-reconfigure $NEW_DM\"."
+          if db_get "$NEW_DM"/daemon_name && [ -n "$RET" ]; then
+            echo "$RET" > "$DEFAULT_DISPLAY_MANAGER_FILE"
+          else
+            echo "/usr/bin/$NEW_DM" > "$DEFAULT_DISPLAY_MANAGER_FILE"
+          fi
         fi
       fi
     fi
