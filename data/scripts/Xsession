@@ -26,22 +26,22 @@ case $SHELL in
     rm -f $xsess_tmp
     ;;
   */fish)
-    [ -f /etc/profile ] && . /etc/profile
-    [ -f $HOME/.profile ] && . $HOME/.profile
+    [ -f /etc/profile ] && { . /etc/profile 2>/dev/null || echo "Warning: Failed to source /etc/profile" >&2; }
+    [ -f $HOME/.profile ] && { . $HOME/.profile 2>/dev/null || echo "Warning: Failed to source $HOME/.profile" >&2; }
     xsess_tmp=`mktemp /tmp/xsess-env-XXXXXX`
     $SHELL --login -c "/bin/sh -c 'export -p' > $xsess_tmp"
     . $xsess_tmp
     rm -f $xsess_tmp
     ;;
   *) # Plain sh, ksh, and anything we do not know.
-    [ -f /etc/profile ] && . /etc/profile
-    [ -f $HOME/.profile ] && . $HOME/.profile
+    [ -f /etc/profile ] && { . /etc/profile 2>/dev/null || echo "Warning: Failed to source /etc/profile" >&2; }
+    [ -f $HOME/.profile ] && { . $HOME/.profile 2>/dev/null || echo "Warning: Failed to source $HOME/.profile" >&2; }
     ;;
 esac
 
-[ -f /etc/xprofile ] && . /etc/xprofile
-[ -f /usr/local/etc/xprofile ] && . /usr/local/etc/xprofile
-[ -f $HOME/.xprofile ] && . $HOME/.xprofile
+[ -f /etc/xprofile ] && { . /etc/xprofile 2>/dev/null || echo "Warning: Failed to source /etc/xprofile" >&2; }
+[ -f /usr/local/etc/xprofile ] && { . /usr/local/etc/xprofile 2>/dev/null || echo "Warning: Failed to source /usr/local/etc/xprofile" >&2; }
+[ -f $HOME/.xprofile ] && { . $HOME/.xprofile 2>/dev/null || echo "Warning: Failed to source $HOME/.xprofile" >&2; }
 
 # run all system xinitrc shell scripts.
 if [ -d /etc/X11/xinit/xinitrc.d ]; then
@@ -81,10 +81,10 @@ fi
 [ -f $HOME/.Xresources ] && xrdb -merge $HOME/.Xresources
 
 if [ -f "$USERXSESSIONRC" ]; then
-  . "$USERXSESSIONRC"
+  { . "$USERXSESSIONRC" 2>/dev/null || echo "Warning: Failed to source $USERXSESSIONRC" >&2; }
 fi
 if [ -f "$USERXSESSION" ]; then
-  . "$USERXSESSION"
+  { . "$USERXSESSION" 2>/dev/null || echo "Warning: Failed to source $USERXSESSION" >&2; }
 fi
 
 if [ -z "$*" ]; then
