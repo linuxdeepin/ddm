@@ -117,7 +117,8 @@ namespace DDM {
 
             daemonApp->signalHandler()->addCustomSignal(RELEASE_DISPLAY_SIGNAL);
             daemonApp->signalHandler()->addCustomSignal(ACQUIRE_DISPLAY_SIGNAL);
-            QObject::connect(daemonApp->signalHandler(), &SignalHandler::customSignalReceived, onVtSignal);
+            QObject::connect(daemonApp->signalHandler(), &SignalHandler::customSignalReceived,
+                             daemonApp->signalHandler(), onVtSignal, Qt::UniqueConnection);
 
             return ok;
         }

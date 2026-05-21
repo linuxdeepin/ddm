@@ -88,6 +88,7 @@ static void renderDisabled([[maybe_unused]] void *data, struct wl_callback *call
         VirtualTerminal::handleVtSwitches(activeVtFd);
         close(activeVtFd);
 
+        conn->activateSession();
         conn->enableRender();
         conn->switchToUser(user.isEmpty() ? "dde" : user);
     } else {
