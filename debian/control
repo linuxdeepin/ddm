@@ -23,7 +23,7 @@ Provides: x-display-manager
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         seatd,
+         dde-seatd,
          treeland,
          libpam-systemd,
 Description: a modern display manager for Wayland sessions aiming to be fast, simple and beautiful.

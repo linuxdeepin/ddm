@@ -1,6 +1,11 @@
 configure_file(ddm.service.in ddm.service)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ddm.service" DESTINATION "${SYSTEMD_SYSTEM_UNIT_DIR}")
 
+configure_file(treeland-dde-seatd.conf.in treeland-dde-seatd.conf)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/treeland-dde-seatd.conf"
+        DESTINATION "${SYSTEMD_SYSTEM_UNIT_DIR}/treeland.service.d"
+        RENAME 10-dde-seatd.conf)
+
 # systemd-tmpfiles can be used standalone without other systemd parts
 if(DEFINED SYSTEMD_TMPFILES_DIR)
     configure_file(ddm-tmpfiles.conf.in ddm-tmpfiles.conf)
