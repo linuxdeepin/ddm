@@ -44,7 +44,11 @@ bool TreelandDisplayServer::start() {
 
     // Start treeland service
     QDBusInterface systemd("org.freedesktop.systemd1", "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", QDBusConnection::systemBus());
-    systemd.call("StartUnit", "treeland.service", "replace");
+    const QDBusMessage reply = systemd.call("StartUnit", "treeland.service", "replace");
+    if (reply.type() == QDBusMessage::ErrorMessage) {
+        qCritical() << "Failed to start treeland.service:" << reply.errorMessage();
+        return false;
+    }
 
     // TODO: check treeland service
 

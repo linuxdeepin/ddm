@@ -117,7 +117,12 @@ namespace DDM {
 
             daemonApp->signalHandler()->addCustomSignal(RELEASE_DISPLAY_SIGNAL);
             daemonApp->signalHandler()->addCustomSignal(ACQUIRE_DISPLAY_SIGNAL);
-            QObject::connect(daemonApp->signalHandler(), &SignalHandler::customSignalReceived, onVtSignal);
+            static bool vtSignalConnected = false;
+            if (!vtSignalConnected) {
+                QObject::connect(daemonApp->signalHandler(), &SignalHandler::customSignalReceived,
+                                 daemonApp->signalHandler(), onVtSignal);
+                vtSignalConnected = true;
+            }
 
             return ok;
         }
@@ -210,6 +215,29 @@ out:
             }
 
             return vt;
+        }
+
+        void activateVt(int vt, bool wait) {
+            int fd = open(qPrintable(path(vt)), O_RDWR | O_NOCTTY);
+            if (fd == -1) {
+                qWarning("Failed to open VT %d: %s", vt, strerror(errno));
+                return;
+            }
+
+            do {
+                errno = 0;
+                if (ioctl(fd, VT_ACTIVATE, vt) < 0) {
+                    if (errno == EINTR)
+                        continue;
+                    qWarning("Couldn't initiate jump to VT %d: %s", vt, strerror(errno));
+                    break;
+                }
+
+                if (wait && ioctl(fd, VT_WAITACTIVE, vt) < 0 && errno != EINTR)
+                    qWarning("Couldn't finalize jump to VT %d: %s", vt, strerror(errno));
+            } while (errno == EINTR);
+
+            close(fd);
         }
 
         void jumpToVt(int vt, bool vt_auto, bool wait) {
