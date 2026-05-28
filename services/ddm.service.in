@@ -2,13 +2,12 @@
 Description=Simple Desktop Display Manager
 Documentation=man:ddm(1) man:ddm.conf(5)
 Conflicts=getty@tty${DDM_INITIAL_VT}.service
-After=systemd-user-sessions.service getty@tty${DDM_INITIAL_VT}.service plymouth-quit.service systemd-logind.service
+After=systemd-user-sessions.service getty@tty${DDM_INITIAL_VT}.service plymouth-quit.service systemd-logind.service dde-seatd.service
 PartOf=graphical.target
 StartLimitIntervalSec=30
 StartLimitBurst=2
 
-Requires=seatd.service
-Before=seatd.service
+Requires=dde-seatd.service
 
 [Service]
 ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/ddm
