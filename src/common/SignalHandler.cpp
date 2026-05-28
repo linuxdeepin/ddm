@@ -110,6 +110,15 @@ namespace DDM {
             qCritical() << "Failed to set up " << strsignal(signal) << " handler.";
             return;
         }
+
+        sigset_t set;
+        sigemptyset(&set);
+        sigaddset(&set, signal);
+        if (sigprocmask(SIG_UNBLOCK, &set, nullptr) < 0) {
+            qCritical() << "Failed to unblock " << strsignal(signal) << " handler.";
+            return;
+        }
+
         customSignals.append(signal);
     }
 

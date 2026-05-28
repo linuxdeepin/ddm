@@ -30,6 +30,7 @@ namespace DDM {
         bool handleVtSwitches(int fd);
         int currentVt();
         int setUpNewVt();
+        void activateVt(int vt, bool wait = true);
         void jumpToVt(int vt, bool vt_auto, bool wait = true);
         void setVtSignalHandler(std::function<void()> onAcquireDisplay, std::function<void()> onReleaseDisplay);
     }

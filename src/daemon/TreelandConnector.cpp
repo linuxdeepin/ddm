@@ -11,25 +11,115 @@
 #include "treeland-ddm-v1.h"
 
 #include <QObject>
+#include <QDBusInterface>
+#include <QDBusObjectPath>
+#include <QDBusReply>
+#include <QDBusVariant>
+#include <QLocalSocket>
 #include <QSocketNotifier>
-#include <QSocketDescriptor>
 #include <QDebug>
-#include <QFile>
+#include <QVariant>
 
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstddef>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits>
+#include <poll.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <sys/un.h>
 #include <unistd.h>
-#include <linux/vt.h>
-#include <sys/ioctl.h>
 
 namespace DDM {
 
-// Virtural Terminal helper from VirturalTerminal.h
+static constexpr auto controlSocketPath = "/run/dde-seatd-control.sock";
+static constexpr auto systemdService = "org.freedesktop.systemd1";
+static constexpr auto systemdPath = "/org/freedesktop/systemd1";
+static constexpr auto systemdManagerInterface = "org.freedesktop.systemd1.Manager";
+static constexpr auto systemdPropertiesInterface = "org.freedesktop.DBus.Properties";
+static constexpr auto systemdServiceInterface = "org.freedesktop.systemd1.Service";
+static constexpr auto treelandUnit = "treeland.service";
 
-static const char *defaultVtPath = "/dev/tty0";
+enum ControlOpcode : uint16_t {
+    ControlCreateGroupVt = 1,
+    ControlDestroyGroupVt = 2,
+    ControlGroupVtCreated = 100,
+    ControlVtActive = 101,
+    ControlError = 255,
+};
+
+struct ControlHeader {
+    uint16_t opcode;
+    uint16_t size;
+};
+
+struct ControlCreateGroupVtRequest {
+    int32_t ownerPid;
+    int32_t vt;
+    char user[64];
+    char session[64];
+};
+
+struct ControlDestroyGroupVtRequest {
+    int32_t vt;
+};
+
+struct ControlVtEvent {
+    int32_t ownerPid;
+    int32_t vt;
+};
+
+struct ControlErrorMessage {
+    int32_t error;
+};
+
+static int connectUnixSocket(const char *path) {
+    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd == -1)
+        return -1;
+
+    sockaddr_un addr {};
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+    const auto size = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + strlen(addr.sun_path));
+    if (::connect(fd, reinterpret_cast<sockaddr *>(&addr), size) == -1) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+static ssize_t recvAll(int fd, void *buffer, size_t size) {
+    auto data = static_cast<char *>(buffer);
+    size_t received = 0;
+    while (received < size) {
+        const auto ret = recv(fd, data + received, size - received, MSG_WAITALL);
+        if (ret == -1) {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+        if (ret == 0)
+            break;
+        received += static_cast<size_t>(ret);
+    }
+    return static_cast<ssize_t>(received);
+}
+
+template <size_t N>
+static void copyFixedString(char (&target)[N], const QString &source) {
+    const auto bytes = source.toUtf8();
+    const auto length = std::min(static_cast<size_t>(bytes.size()), N - 1);
+    memcpy(target, bytes.constData(), static_cast<size_t>(length));
+    target[length] = '\0';
+}
 
 static bool isVtRunningTreeland(int vtnr) {
     for (Display *display : daemonApp->seatManager()->displays) {
@@ -42,100 +132,51 @@ static bool isVtRunningTreeland(int vtnr) {
     return false;
 }
 
-/**
- * Callback function of disableRender
- *
- * This will be called after treeland render has been disabled, which is
- * happened after a VT release-display signal, to finalize VT switching (see
- * onReleaseDisplay()).
- */
-static void renderDisabled([[maybe_unused]] void *data, struct wl_callback *callback, [[maybe_unused]] uint32_t serial) {
-    wl_callback_destroy(callback);
+static bool isTreelandGreeterVt(int vtnr) {
+    for (Display *display : daemonApp->seatManager()->displays) {
+        if (display->terminalId == vtnr)
+            return true;
+    }
+    return false;
+}
 
-    // Acknowledge kernel to release display
-    int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-    ioctl(fd, VT_RELDISP, 1);
-    close(fd);
+static QString findTreelandUserByVt(int vtnr) {
+    if (vtnr <= 0)
+        return {};
 
-    // Get active VT by reading /sys/class/tty/tty0/active .
-    // Note that we cannot use open(defaultVtPath, ...) here, as the open() will
-    // block VT file access, causing error to systemd-getty-generator, and stop
-    // getty from spawning if current VT is empty.
-    int activeVt = -1;
-    QFile tty("/sys/class/tty/tty0/active");
-    if (!tty.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning("Failed to open active tty file");
-    } else {
-        auto active = tty.readAll();
-        tty.close();
-        int scanResult = sscanf(qPrintable(active), "tty%d", &activeVt);
-        if (scanResult != 1) {
-            qWarning("Failed to parse active VT from /sys/class/tty/tty0/active with content %s", qPrintable(active));
-            activeVt = -1;
+    auto user = daemonApp->displayManager()->findUserByVt(vtnr);
+    if (!user.isEmpty())
+        return user;
+
+    for (Display *display : daemonApp->seatManager()->displays) {
+        for (Auth *auth : display->auths) {
+            if (auth->tty == vtnr && auth->type == Display::Treeland)
+                return auth->user;
         }
     }
 
-    auto user = daemonApp->displayManager()->findUserByVt(activeVt);
-    bool isTreeland = isVtRunningTreeland(activeVt);
-    auto conn = daemonApp->treelandConnector();
-    qDebug("Next VT: %d, user: %s", activeVt, user.isEmpty() ? "None" : qPrintable(user));
+    if (isVtRunningTreeland(vtnr))
+        user = daemonApp->displayManager()->LastActivatedUser();
+    if (!user.isEmpty())
+        return user;
 
-    if (isTreeland) {
-        // If user is not empty, it means the switching can be issued by
-        // ddm-helper. It uses VT signals from VirtualTerminal.h,
-        // which is not what we want, so we should acquire VT control here.
-        int activeVtFd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-        VirtualTerminal::handleVtSwitches(activeVtFd);
-        close(activeVtFd);
-
-        conn->enableRender();
-        conn->switchToUser(user.isEmpty() ? "dde" : user);
-    } else {
-        // Switch to a TTY, deactivate treeland session.
-        conn->switchToGreeter();
-        conn->deactivateSession();
+    for (Display *display : daemonApp->seatManager()->displays) {
+        if (display->terminalId == vtnr)
+            return QStringLiteral("dde");
     }
-}
-
-static const wl_callback_listener renderDisabledListener {
-    .done = renderDisabled,
-};
-
-static void onAcquireDisplay() {
-    int fd = open(defaultVtPath, O_RDWR | O_NOCTTY);
-
-    // Activate treeland session before we acknowledge VT switch.
-    // This will queue our rendering jobs before any keyboard event, to ensure
-    // all GUI elements are under a prepared state before next possible VT
-    // switch issued by keyboard.
-    int vtnr = VirtualTerminal::getVtActive(fd);
-    auto user = daemonApp->displayManager()->findUserByVt(vtnr);
-    auto conn = daemonApp->treelandConnector();
-    if (isVtRunningTreeland(vtnr)) {
-        qDebug("Activate session at VT %d for user %s", vtnr, qPrintable(user));
-        conn->activateSession();
-        conn->enableRender();
-        conn->switchToUser(user);
-    }
-
-    ioctl(fd, VT_RELDISP, VT_ACKACQ);
-    close(fd);
-}
-
-static void onReleaseDisplay() {
-    auto callback = daemonApp->treelandConnector()->disableRender();
-    wl_callback_add_listener(callback, &renderDisabledListener, nullptr);
+    return {};
 }
 
 // TreelandConnector
 
 TreelandConnector::TreelandConnector() : QObject(nullptr) {
-    setSignalHandler();
 }
 
 TreelandConnector::~TreelandConnector() {
+    disconnectControlSocket();
     delete m_notifier;
-    wl_display_disconnect(m_display);
+    if (m_display)
+        wl_display_disconnect(m_display);
 }
 
 bool TreelandConnector::isConnected() {
@@ -147,22 +188,15 @@ void TreelandConnector::setPrivateObject(struct treeland_ddm_v1 *ddm) {
 }
 
 void TreelandConnector::setSignalHandler() {
-    VirtualTerminal::setVtSignalHandler(onAcquireDisplay, onReleaseDisplay);
 }
 
 // Event implementation
 
 static void switchToVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm_v1 *ddm, int32_t vtnr) {
-    int fd = open(qPrintable(VirtualTerminal::path(vtnr)), O_RDWR | O_NOCTTY);
-    if (ioctl(fd, VT_ACTIVATE, vtnr) < 0)
-        qWarning("Failed to switch to VT %d: %s", vtnr, strerror(errno));
-    close(fd);
+    VirtualTerminal::activateVt(vtnr, false);
 }
 
-static void acquireVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm_v1 *ddm, int32_t vtnr) {
-    int fd = open(qPrintable(VirtualTerminal::path(vtnr)), O_RDWR | O_NOCTTY);
-    VirtualTerminal::handleVtSwitches(fd);
-    close(fd);
+static void acquireVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm_v1 *ddm, [[maybe_unused]] int32_t vtnr) {
 }
 
 const struct treeland_ddm_v1_listener treelandDDMListener {
@@ -197,8 +231,16 @@ const struct wl_registry_listener registryListener {
 
 void TreelandConnector::connect(QString socketPath) {
     disconnect();
+    if (!connectControlSocket()) {
+        qCritical("Cannot connect Treeland without dde-seatd control socket");
+        return;
+    }
 
     m_display = wl_display_connect(qPrintable(socketPath));
+    if (m_display == nullptr) {
+        qWarning("Failed to connect to Treeland Wayland socket %s", qPrintable(socketPath));
+        return;
+    }
     auto registry = wl_display_get_registry(m_display);
 
     wl_registry_add_listener(registry, &registryListener, this);
@@ -219,6 +261,7 @@ void TreelandConnector::connect(QString socketPath) {
 }
 
 void TreelandConnector::disconnect() {
+    disconnectControlSocket();
     if (m_display) {
         if (m_notifier)
             m_notifier->setEnabled(false);
@@ -230,6 +273,226 @@ void TreelandConnector::disconnect() {
         m_display = nullptr;
     }
     m_ddm = nullptr;
+}
+
+bool TreelandConnector::connectControlSocket() {
+    if (m_controlSocket && m_controlSocket->state() == QLocalSocket::ConnectedState)
+        return true;
+
+    disconnectControlSocket();
+
+    m_controlSocket = new QLocalSocket(this);
+    QObject::connect(m_controlSocket, &QLocalSocket::readyRead, this, [this] {
+        handleControlSocket();
+    });
+    QObject::connect(m_controlSocket, &QLocalSocket::disconnected, this, [this] {
+        qWarning("dde-seatd control socket disconnected");
+        disconnectControlSocket();
+    });
+
+    m_controlSocket->connectToServer(QString::fromLatin1(controlSocketPath));
+    if (!m_controlSocket->waitForConnected(3000)) {
+        qWarning() << "Failed to connect dde-seatd control socket"
+                   << controlSocketPath << ":" << m_controlSocket->errorString();
+        disconnectControlSocket();
+        return false;
+    }
+    qWarning("Connected dde-seatd control event socket via QLocalSocket");
+    return true;
+}
+
+void TreelandConnector::disconnectControlSocket() {
+    if (m_controlSocket) {
+        m_controlSocket->blockSignals(true);
+        if (m_controlSocket->state() != QLocalSocket::UnconnectedState)
+            m_controlSocket->disconnectFromServer();
+        m_controlSocket->deleteLater();
+        m_controlSocket = nullptr;
+    }
+    m_controlBuffer.clear();
+}
+
+int TreelandConnector::treelandMainPid() const {
+    QDBusInterface systemd(systemdService,
+                           systemdPath,
+                           systemdManagerInterface,
+                           QDBusConnection::systemBus());
+    const auto unitReply = systemd.call(QStringLiteral("GetUnit"), QString::fromLatin1(treelandUnit));
+    if (unitReply.type() == QDBusMessage::ErrorMessage) {
+        qWarning() << "Failed to get" << treelandUnit << "unit:" << unitReply.errorMessage();
+        return -1;
+    }
+
+    const auto unitPath = qvariant_cast<QDBusObjectPath>(unitReply.arguments().value(0)).path();
+    QDBusInterface properties(systemdService,
+                              unitPath,
+                              systemdPropertiesInterface,
+                              QDBusConnection::systemBus());
+    const auto reply = properties.call(QStringLiteral("Get"),
+                                       QString::fromLatin1(systemdServiceInterface),
+                                       QStringLiteral("MainPID"));
+    if (reply.type() == QDBusMessage::ErrorMessage) {
+        qWarning() << "Failed to get Treeland MainPID:" << reply.errorMessage();
+        return -1;
+    }
+
+    const auto variant = qvariant_cast<QDBusVariant>(reply.arguments().value(0)).variant();
+    bool ok = false;
+    const auto pid = variant.toULongLong(&ok);
+    if (!ok || pid == 0 || pid > static_cast<qulonglong>(std::numeric_limits<pid_t>::max())) {
+        qWarning() << "Invalid Treeland MainPID from systemd:" << variant;
+        return -1;
+    }
+    return static_cast<int>(pid);
+}
+
+int TreelandConnector::createGroupVtForTreeland(const QString &user, const QString &sessionId) {
+    const int ownerPid = treelandMainPid();
+    if (ownerPid <= 0)
+        return -1;
+
+    const int fd = connectUnixSocket(controlSocketPath);
+    if (fd == -1) {
+        qWarning("Failed to connect dde-seatd control socket %s: %s",
+                 controlSocketPath, strerror(errno));
+        return -1;
+    }
+
+    ControlHeader header {
+        .opcode = ControlCreateGroupVt,
+        .size = sizeof(ControlCreateGroupVtRequest),
+    };
+    ControlCreateGroupVtRequest request {};
+    request.ownerPid = ownerPid;
+    request.vt = 0;
+    copyFixedString(request.user, user);
+    copyFixedString(request.session, sessionId);
+
+    std::array<iovec, 2> iov {{
+        { &header, sizeof(header) },
+        { &request, sizeof(request) },
+    }};
+    msghdr message {};
+    message.msg_iov = iov.data();
+    message.msg_iovlen = iov.size();
+
+    const auto sent = sendmsg(fd, &message, MSG_NOSIGNAL);
+    if (sent == -1) {
+        qWarning("Failed to send create-group-vt request: %s", strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    pollfd pollFd {
+        .fd = fd,
+        .events = POLLIN,
+        .revents = 0,
+    };
+    if (poll(&pollFd, 1, 3000) <= 0) {
+        qWarning("Timed out waiting for dde-seatd create-group-vt response");
+        close(fd);
+        return -1;
+    }
+
+    ControlHeader responseHeader {};
+    if (recvAll(fd, &responseHeader, sizeof(responseHeader)) != static_cast<ssize_t>(sizeof(responseHeader))) {
+        qWarning("Failed to read create-group-vt response header: %s", strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    int vt = -1;
+    if (responseHeader.opcode == ControlGroupVtCreated &&
+        responseHeader.size == sizeof(ControlVtEvent)) {
+        ControlVtEvent event {};
+        if (recvAll(fd, &event, sizeof(event)) == static_cast<ssize_t>(sizeof(event)))
+            vt = event.vt;
+    } else if (responseHeader.opcode == ControlError &&
+               responseHeader.size == sizeof(ControlErrorMessage)) {
+        ControlErrorMessage error {};
+        if (recvAll(fd, &error, sizeof(error)) == static_cast<ssize_t>(sizeof(error)))
+            qWarning("dde-seatd create-group-vt failed: %s", strerror(error.error));
+    } else {
+        qWarning("Unexpected dde-seatd create-group-vt response opcode %u size %u",
+                 responseHeader.opcode, responseHeader.size);
+    }
+
+    close(fd);
+    if (vt > 0 && !connectControlSocket())
+        qWarning("Failed to reconnect dde-seatd control event socket");
+    return vt;
+}
+
+bool TreelandConnector::sendDestroyGroupVt(int vt) {
+    const int fd = connectUnixSocket(controlSocketPath);
+    if (fd == -1)
+        return false;
+
+    ControlHeader header {
+        .opcode = ControlDestroyGroupVt,
+        .size = sizeof(ControlDestroyGroupVtRequest),
+    };
+    ControlDestroyGroupVtRequest request {
+        .vt = vt,
+    };
+    std::array<iovec, 2> iov {{
+        { &header, sizeof(header) },
+        { &request, sizeof(request) },
+    }};
+    msghdr message {};
+    message.msg_iov = iov.data();
+    message.msg_iovlen = iov.size();
+    const bool ok = sendmsg(fd, &message, MSG_NOSIGNAL) != -1;
+    close(fd);
+    return ok;
+}
+
+void TreelandConnector::destroyGroupVt(int vt) {
+    if (vt > 0 && !sendDestroyGroupVt(vt))
+        qWarning("Failed to destroy grouped VT %d: %s", vt, strerror(errno));
+}
+
+void TreelandConnector::handleControlSocket() {
+    if (!m_controlSocket)
+        return;
+
+    const QByteArray chunk = m_controlSocket->readAll();
+    if (chunk.isEmpty())
+        return;
+
+    m_controlBuffer.append(chunk);
+    while (m_controlBuffer.size() >= static_cast<int>(sizeof(ControlHeader))) {
+        ControlHeader header {};
+        memcpy(&header, m_controlBuffer.constData(), sizeof(header));
+        if (header.size > 4096) {
+            qWarning("Invalid dde-seatd control message size %u", header.size);
+            disconnectControlSocket();
+            return;
+        }
+        const int messageSize = static_cast<int>(sizeof(ControlHeader) + header.size);
+        if (m_controlBuffer.size() < messageSize)
+            return;
+
+        const auto payload = m_controlBuffer.constData() + sizeof(ControlHeader);
+        if (header.opcode == ControlVtActive && header.size == sizeof(ControlVtEvent)) {
+            ControlVtEvent event {};
+            memcpy(&event, payload, sizeof(event));
+            if (isVtRunningTreeland(event.vt)) {
+                const auto user = findTreelandUserByVt(event.vt);
+                qDebug("Activate Treeland group VT %d for user %s",
+                       event.vt, qPrintable(user));
+                activateSession();
+                enableRender();
+                if (isTreelandGreeterVt(event.vt) || user == QStringLiteral("dde"))
+                    switchToGreeter();
+                else
+                    switchToUser(user);
+            } else {
+                deactivateSession();
+            }
+        }
+        m_controlBuffer.remove(0, messageSize);
+    }
 }
 
 // Request wrapper
@@ -276,17 +539,6 @@ void TreelandConnector::enableRender() {
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call enableRender");
-    }
-}
-
-struct wl_callback *TreelandConnector::disableRender() {
-    if (isConnected()) {
-        auto callback = treeland_ddm_v1_disable_render(m_ddm);
-        wl_display_flush(m_display);
-        return callback;
-    } else {
-        qWarning("Treeland is not connected when trying to call disableRender");
-        return nullptr;
     }
 }
 

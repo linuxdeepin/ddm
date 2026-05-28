@@ -97,6 +97,29 @@ namespace DDM {
         return VirtualTerminal::setUpNewVt();
     }
 
+    static bool isVtReservedByDdm(int vt) {
+        for (Display *display : daemonApp->seatManager()->displays) {
+            if (display->terminalId == vt)
+                return true;
+            for (Auth *auth : display->auths) {
+                if (auth->tty == vt)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    static int fetchAvailableUserVt() {
+        for (int vt = DDM_INITIAL_VT; vt < 64; ++vt) {
+            if (isVtReservedByDdm(vt))
+                continue;
+            if (!isTtyInUse(QStringLiteral("tty%1").arg(vt)))
+                return vt;
+        }
+
+        return VirtualTerminal::setUpNewVt();
+    }
+
     Display::Display(SeatManager *parent, QString name)
         : QObject(parent)
         , name(name)
@@ -112,7 +135,7 @@ namespace DDM {
             {},
             name,
             "dde",
-            static_cast<uint>(VirtualTerminal::currentVt()));
+            terminalId);
 
         // connect connected signal
         connect(m_socketServer, &SocketServer::connected, this, &Display::connected);
@@ -239,34 +262,47 @@ namespace DDM {
             qWarning() << "Existing authentication ongoing, aborting";
             return;
         }
+        const bool insertedAuth = !auths.contains(auth);
+        if (insertedAuth)
+            auths << auth;
 
         // sanity check
         if (!session.isValid()) {
             qCritical() << "Invalid session" << session.fileName();
+            if (insertedAuth) {
+                auths.removeAll(auth);
+                delete auth;
+            }
             return;
         }
         if (session.xdgSessionType().isEmpty()) {
             qCritical() << "Failed to find XDG session type for session" << session.fileName();
+            if (insertedAuth) {
+                auths.removeAll(auth);
+                delete auth;
+            }
             return;
         }
         if (session.exec().isEmpty()) {
             qCritical() << "Failed to find command for session" << session.fileName();
+            if (insertedAuth) {
+                auths.removeAll(auth);
+                delete auth;
+            }
             return;
         }
 
+        const QString sessionId = QStringLiteral("Session%1").arg(daemonApp->newSessionId());
+
         // Run password check
-        if (session.isSingleMode())
-            auth->tty = VirtualTerminal::setUpNewVt();
-        else
-            auth->tty = terminalId;
         if (!auth->authenticate(password.toLocal8Bit())) {
+            if (insertedAuth) {
+                auths.removeAll(auth);
+                delete auth;
+            }
             Q_EMIT loginFailed(socket, user);
             return;
         }
-
-        // some information
-        qInfo() << "Authentication succeeded for user" << user << ", opening session"
-                << session.fileName() << ", command:" << session.exec() << ", VT:" << auth->tty;
 
         // save last user and last session
         DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
@@ -280,14 +316,39 @@ namespace DDM {
             stateConfig.Last.Session.setDefault();
         stateConfig.save();
 
+        auth->sessionId = sessionId;
+
+        // Special preparation for each display server type
+        //
+        // TODO: Let Treeland drop DRM master when inactive, so that X
+        // server and other Wayland compositor can co-exist with
+        // greeter (the Treeland)
+        QByteArray cookie;
+        if (session.isSingleMode()) {
+            auth->type = Treeland;
+            auth->tty = daemonApp->treelandConnector()->createGroupVtForTreeland(user, sessionId);
+            if (auth->tty <= 0) {
+                qCritical() << "Failed to allocate grouped VT for Treeland user session";
+                auths.removeAll(auth);
+                delete auth;
+                return;
+            }
+        } else if (session.xdgSessionType() == QLatin1String("x11")) {
+            auth->type = X11;
+            auth->tty = fetchAvailableUserVt();
+        } else {
+            auth->type = Wayland;
+            auth->tty = fetchAvailableUserVt();
+        }
+
+        qInfo() << "Authentication succeeded for user" << user << ", opening session"
+                << session.fileName() << ", command:" << session.exec() << ", VT:" << auth->tty;
+
         // Prepare session environment
         QProcessEnvironment env;
         env.insert(session.additionalEnv());
 
-        // session id
-        const QString sessionId = QStringLiteral("Session%1").arg(daemonApp->newSessionId());
         env.insert(QStringLiteral("XDG_SESSION_PATH"), daemonApp->displayManager()->sessionPath(sessionId));
-        auth->sessionId = sessionId;
 
         env.insert(QStringLiteral("PATH"), mainConfig.Users.DefaultPath.get());
         env.insert(QStringLiteral("DESKTOP_SESSION"), session.desktopSession());
@@ -300,18 +361,9 @@ namespace DDM {
         env.insert(QStringLiteral("XDG_SEAT_PATH"), daemonApp->displayManager()->seatPath(name));
         env.insert(QStringLiteral("XDG_SESSION_DESKTOP"), session.desktopNames());
 
-        // Special preparation for each display server type
-        //
-        // TODO: Let Treeland drop DRM master when inactive, so that X
-        // server and other Wayland compositor can co-exist with
-        // greeter (the Treeland)
-        QByteArray cookie;
         if (session.isSingleMode()) {
-            auth->type = Treeland;
             env.insert("DDE_CURRENT_COMPOSITOR", "TreeLand");
         } else if (session.xdgSessionType() == QLatin1String("x11")) {
-            auth->type = X11;
-
             qInfo() << "Stopping Treeland";
             daemonApp->treelandConnector()->disconnect();
             m_treeland->stop();
@@ -330,8 +382,6 @@ namespace DDM {
             env.insert(QStringLiteral("DISPLAY"), m_x11Server->display);
             cookie = m_x11Server->cookie();
         } else {
-            auth->type = Wayland;
-
             qInfo() << "Stopping Treeland";
             daemonApp->treelandConnector()->disconnect();
             m_treeland->stop();
@@ -343,6 +393,9 @@ namespace DDM {
 
         if (xdgSessionId <= 0) {
             qCritical() << "Failed to open logind session for user" << user;
+            if (auth->type == Treeland)
+                daemonApp->treelandConnector()->destroyGroupVt(auth->tty);
+            auths.removeAll(auth);
             delete auth;
             return;
         }
@@ -351,14 +404,15 @@ namespace DDM {
             qWarning() << "Session for user" << auth->user << "finished";
             auths.removeAll(auth);
             daemonApp->displayManager()->RemoveSession(auth->sessionId);
+            if (auth->type == Treeland)
+                daemonApp->treelandConnector()->destroyGroupVt(auth->tty);
             delete auth;
         });
         daemonApp->displayManager()->AddSession(sessionId, name, user, auth->tty);
         daemonApp->displayManager()->setLastSession(sessionId);
 
-        // The user process is ongoing, append to active auths
-        // The auth will be delete later in userProcessFinished()
-        auths << auth;
+        if (auth->type == Treeland)
+            VirtualTerminal::activateVt(auth->tty, false);
         qInfo() << "Successfully logged in user" << user;
     }
 
@@ -419,7 +473,7 @@ namespace DDM {
                                                              Logind::managerPath(),
                                                              QDBusConnection::systemBus());
                 manager.UnlockSession(QString::number(auth->xdgSessionId));
-                VirtualTerminal::jumpToVt(auth->tty, false);
+                VirtualTerminal::jumpToVt(auth->tty, false, false);
                 qInfo() << "Successfully identified user" << user;
                 return;
             }
