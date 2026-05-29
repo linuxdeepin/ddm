@@ -90,7 +90,7 @@ namespace DDM {
         sigemptyset(&sigterm.sa_mask);
         sigterm.sa_flags = SA_RESTART;
 
-        if (sigaction(SIGTERM, &sigterm, 0) > 0) {
+        if (sigaction(SIGTERM, &sigterm, 0) < 0) {
             qCritical() << "Failed to set up SIGTERM handler.";
             return;
         }
@@ -106,7 +106,7 @@ namespace DDM {
         sigemptyset(&sigcustom.sa_mask);
         sigcustom.sa_flags = SA_RESTART;
 
-        if (sigaction(signal, &sigcustom, 0) > 0) {
+        if (sigaction(signal, &sigcustom, 0) < 0) {
             qCritical() << "Failed to set up " << strsignal(signal) << " handler.";
             return;
         }

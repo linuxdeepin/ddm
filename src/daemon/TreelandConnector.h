@@ -10,7 +10,7 @@ struct wl_display;
 struct treeland_ddm_v1;
 
 namespace DDM {
-class TreelandConnector : QObject {
+class TreelandConnector : public QObject {
     Q_OBJECT
 public:
     TreelandConnector();
@@ -25,9 +25,6 @@ public:
 
     void switchToGreeter();
     void switchToUser(const QString username);
-    void activateSession();
-    void deactivateSession();
-    void enableRender();
 private:
     bool connectControlSocket();
     void disconnectControlSocket();
