@@ -110,7 +110,7 @@ namespace DDM {
     }
 
     static int fetchAvailableUserVt() {
-        for (int vt = DDM_INITIAL_VT; vt < 64; ++vt) {
+        for (int vt = DDM_INITIAL_VT; vt <= MAX_NR_CONSOLES; ++vt) {
             if (isVtReservedByDdm(vt))
                 continue;
             if (!isTtyInUse(QStringLiteral("tty%1").arg(vt)))
@@ -161,6 +161,9 @@ namespace DDM {
     }
 
     void Display::activateSession(const QString &user, int xdgSessionId) {
+        qWarning() << "Display activateSession requested for user" << user
+                   << "xdgSessionId" << xdgSessionId
+                   << "display VT" << terminalId;
         if (xdgSessionId <= 0 && user != QStringLiteral("dde")) {
             qCritical() << "Invalid xdg session id" << xdgSessionId << "for user" << user;
             return;
@@ -375,6 +378,10 @@ namespace DDM {
             connect(m_x11Server, &XorgDisplayServer::stopped, this, &Display::stop);
             if (!m_x11Server->start(auth->tty)) {
                 qCritical() << "Failed to start X11 display server";
+                delete m_x11Server;
+                m_x11Server = nullptr;
+                auths.removeAll(auth);
+                delete auth;
                 return;
             }
             m_x11Server->setupDisplay();
@@ -412,7 +419,7 @@ namespace DDM {
         daemonApp->displayManager()->setLastSession(sessionId);
 
         if (auth->type == Treeland)
-            VirtualTerminal::activateVt(auth->tty, false);
+            activateSession(user, xdgSessionId);
         qInfo() << "Successfully logged in user" << user;
     }
 
@@ -473,7 +480,10 @@ namespace DDM {
                                                              Logind::managerPath(),
                                                              QDBusConnection::systemBus());
                 manager.UnlockSession(QString::number(auth->xdgSessionId));
-                VirtualTerminal::jumpToVt(auth->tty, false, false);
+                if (auth->type == Treeland)
+                    activateSession(user, auth->xdgSessionId);
+                else
+                    VirtualTerminal::jumpToVt(auth->tty, false, false);
                 qInfo() << "Successfully identified user" << user;
                 return;
             }

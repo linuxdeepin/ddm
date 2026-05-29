@@ -28,12 +28,45 @@
 #include "seatadaptor.h"
 #include "sessionadaptor.h"
 
+#include <QDBusConnectionInterface>
+#include <QDBusReply>
+#include <QFileInfo>
+
 const QString DISPLAYMANAGER_SERVICE = QStringLiteral("org.freedesktop.DisplayManager");
 const QString DISPLAYMANAGER_PATH = QStringLiteral("/org/freedesktop/DisplayManager");
 const QString DISPLAYMANAGER_SEAT_PATH = QStringLiteral("/org/freedesktop/DisplayManager/Seat");
 const QString DISPLAYMANAGER_SESSION_PATH = QStringLiteral("/org/freedesktop/DisplayManager/Session");
 
 namespace DDM {
+    static QString dbusCallerDescription(const QDBusContext &context) {
+        if (!context.calledFromDBus())
+            return QStringLiteral("non-dbus");
+
+        const auto service = context.message().service();
+        auto description = QStringLiteral("service=%1").arg(service);
+
+        auto *interface = QDBusConnection::systemBus().interface();
+        if (!interface)
+            return description;
+
+        const QDBusReply<uint> uidReply = interface->serviceUid(service);
+        if (uidReply.isValid())
+            description += QStringLiteral(" uid=%1").arg(uidReply.value());
+
+        const QDBusReply<uint> pidReply = interface->servicePid(service);
+        if (!pidReply.isValid())
+            return description;
+
+        description += QStringLiteral(" pid=%1").arg(pidReply.value());
+
+        const QFileInfo exeInfo(QStringLiteral("/proc/%1/exe").arg(pidReply.value()));
+        const auto exePath = exeInfo.symLinkTarget();
+        if (!exePath.isEmpty())
+            description += QStringLiteral(" exe=%1").arg(exePath);
+
+        return description;
+    }
+
     DisplayManager::DisplayManager(QObject *parent) : QObject(parent) {
         // create adaptor
         new DisplayManagerAdaptor(this);
@@ -207,6 +240,8 @@ namespace DDM {
     }
 
     void DisplayManagerSeat::SwitchToGreeter() {
+        qWarning() << "DisplayManagerSeat::SwitchToGreeter requested for seat" << m_name
+                   << "from" << dbusCallerDescription(*this);
         daemonApp->seatManager()->switchToGreeter(m_name);
     }
 

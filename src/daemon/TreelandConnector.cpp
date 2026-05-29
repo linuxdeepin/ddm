@@ -7,7 +7,6 @@
 #include "Display.h"
 #include "DisplayManager.h"
 #include "SeatManager.h"
-#include "VirtualTerminal.h"
 #include "treeland-ddm-v1.h"
 
 #include <QObject>
@@ -46,12 +45,13 @@ static constexpr auto systemdManagerInterface = "org.freedesktop.systemd1.Manage
 static constexpr auto systemdPropertiesInterface = "org.freedesktop.DBus.Properties";
 static constexpr auto systemdServiceInterface = "org.freedesktop.systemd1.Service";
 static constexpr auto treelandUnit = "treeland.service";
+static constexpr uint16_t maxControlPayloadSize = 4096;
 
 enum ControlOpcode : uint16_t {
     ControlCreateGroupVt = 1,
     ControlDestroyGroupVt = 2,
     ControlGroupVtCreated = 100,
-    ControlVtActive = 101,
+    ControlVtChanged = 101,
     ControlError = 255,
 };
 
@@ -71,9 +71,14 @@ struct ControlDestroyGroupVtRequest {
     int32_t vt;
 };
 
-struct ControlVtEvent {
+struct ControlGroupVtCreatedEvent {
     int32_t ownerPid;
     int32_t vt;
+};
+
+struct ControlVtChangeEvent {
+    int32_t oldVt;
+    int32_t newVt;
 };
 
 struct ControlErrorMessage {
@@ -87,8 +92,14 @@ static int connectUnixSocket(const char *path) {
 
     sockaddr_un addr {};
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-    const auto size = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + strlen(addr.sun_path));
+    const size_t pathLength = strlen(path);
+    if (pathLength >= sizeof(addr.sun_path)) {
+        close(fd);
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    memcpy(addr.sun_path, path, pathLength + 1);
+    const auto size = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + pathLength + 1);
     if (::connect(fd, reinterpret_cast<sockaddr *>(&addr), size) == -1) {
         close(fd);
         return -1;
@@ -100,17 +111,38 @@ static ssize_t recvAll(int fd, void *buffer, size_t size) {
     auto data = static_cast<char *>(buffer);
     size_t received = 0;
     while (received < size) {
-        const auto ret = recv(fd, data + received, size - received, MSG_WAITALL);
+        const auto ret = recv(fd, data + received, size - received, 0);
         if (ret == -1) {
             if (errno == EINTR)
                 continue;
             return -1;
         }
-        if (ret == 0)
-            break;
+        if (ret == 0) {
+            errno = ECONNRESET;
+            return -1;
+        }
         received += static_cast<size_t>(ret);
     }
     return static_cast<ssize_t>(received);
+}
+
+static bool sendAll(int fd, const void *buffer, size_t size) {
+    const auto *data = static_cast<const char *>(buffer);
+    size_t sent = 0;
+    while (sent < size) {
+        const auto ret = send(fd, data + sent, size - sent, MSG_NOSIGNAL);
+        if (ret == -1) {
+            if (errno == EINTR)
+                continue;
+            return false;
+        }
+        if (ret == 0) {
+            errno = EPIPE;
+            return false;
+        }
+        sent += static_cast<size_t>(ret);
+    }
+    return true;
 }
 
 template <size_t N>
@@ -193,7 +225,7 @@ void TreelandConnector::setSignalHandler() {
 // Event implementation
 
 static void switchToVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm_v1 *ddm, int32_t vtnr) {
-    VirtualTerminal::activateVt(vtnr, false);
+    qWarning("Ignoring deprecated treeland switch_to_vt request for VT %d; wlroots/libseat handles VT switching directly", vtnr);
 }
 
 static void acquireVt([[maybe_unused]] void *data, [[maybe_unused]] struct treeland_ddm_v1 *ddm, [[maybe_unused]] int32_t vtnr) {
@@ -282,13 +314,8 @@ bool TreelandConnector::connectControlSocket() {
     disconnectControlSocket();
 
     m_controlSocket = new QLocalSocket(this);
-    QObject::connect(m_controlSocket, &QLocalSocket::readyRead, this, [this] {
-        handleControlSocket();
-    });
-    QObject::connect(m_controlSocket, &QLocalSocket::disconnected, this, [this] {
-        qWarning("dde-seatd control socket disconnected");
-        disconnectControlSocket();
-    });
+    QObject::connect(m_controlSocket, &QLocalSocket::readyRead, this, &TreelandConnector::handleControlSocket);
+    QObject::connect(m_controlSocket, &QLocalSocket::disconnected, this, &TreelandConnector::disconnectControlSocket);
 
     m_controlSocket->connectToServer(QString::fromLatin1(controlSocketPath));
     if (!m_controlSocket->waitForConnected(3000)) {
@@ -297,12 +324,16 @@ bool TreelandConnector::connectControlSocket() {
         disconnectControlSocket();
         return false;
     }
-    qWarning("Connected dde-seatd control event socket via QLocalSocket");
+    qDebug("Connected dde-seatd control event socket via QLocalSocket");
     return true;
 }
 
 void TreelandConnector::disconnectControlSocket() {
     if (m_controlSocket) {
+        if (m_controlSocket->state() == QLocalSocket::ConnectedState
+            || m_controlSocket->state() == QLocalSocket::ClosingState) {
+            qDebug("dde-seatd control socket disconnected");
+        }
         m_controlSocket->blockSignals(true);
         if (m_controlSocket->state() != QLocalSocket::UnconnectedState)
             m_controlSocket->disconnectFromServer();
@@ -368,16 +399,15 @@ int TreelandConnector::createGroupVtForTreeland(const QString &user, const QStri
     copyFixedString(request.user, user);
     copyFixedString(request.session, sessionId);
 
-    std::array<iovec, 2> iov {{
-        { &header, sizeof(header) },
-        { &request, sizeof(request) },
-    }};
-    msghdr message {};
-    message.msg_iov = iov.data();
-    message.msg_iovlen = iov.size();
+    struct {
+        ControlHeader header;
+        ControlCreateGroupVtRequest request;
+    } message {
+        .header = header,
+        .request = request,
+    };
 
-    const auto sent = sendmsg(fd, &message, MSG_NOSIGNAL);
-    if (sent == -1) {
+    if (!sendAll(fd, &message, sizeof(message))) {
         qWarning("Failed to send create-group-vt request: %s", strerror(errno));
         close(fd);
         return -1;
@@ -388,9 +418,24 @@ int TreelandConnector::createGroupVtForTreeland(const QString &user, const QStri
         .events = POLLIN,
         .revents = 0,
     };
-    if (poll(&pollFd, 1, 3000) <= 0) {
+    int pollResult = -1;
+    do {
+        pollResult = poll(&pollFd, 1, 3000);
+    } while (pollResult == -1 && errno == EINTR);
+    if (pollResult == -1) {
+        qWarning("Failed waiting for dde-seatd create-group-vt response: %s", strerror(errno));
+        close(fd);
+        return -1;
+    }
+    if (pollResult == 0) {
         qWarning("Timed out waiting for dde-seatd create-group-vt response");
         close(fd);
+        return -1;
+    }
+    if ((pollFd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 || (pollFd.revents & POLLIN) == 0) {
+        qWarning("Invalid dde-seatd create-group-vt poll events: 0x%x", pollFd.revents);
+        close(fd);
+        errno = ECONNRESET;
         return -1;
     }
 
@@ -403,8 +448,8 @@ int TreelandConnector::createGroupVtForTreeland(const QString &user, const QStri
 
     int vt = -1;
     if (responseHeader.opcode == ControlGroupVtCreated &&
-        responseHeader.size == sizeof(ControlVtEvent)) {
-        ControlVtEvent event {};
+        responseHeader.size == sizeof(ControlGroupVtCreatedEvent)) {
+        ControlGroupVtCreatedEvent event {};
         if (recvAll(fd, &event, sizeof(event)) == static_cast<ssize_t>(sizeof(event)))
             vt = event.vt;
     } else if (responseHeader.opcode == ControlError &&
@@ -418,8 +463,11 @@ int TreelandConnector::createGroupVtForTreeland(const QString &user, const QStri
     }
 
     close(fd);
-    if (vt > 0 && !connectControlSocket())
-        qWarning("Failed to reconnect dde-seatd control event socket");
+    if (vt > 0 && !connectControlSocket()) {
+        qWarning("Failed to reconnect dde-seatd control event socket, rolling back grouped VT %d", vt);
+        destroyGroupVt(vt);
+        return -1;
+    }
     return vt;
 }
 
@@ -435,14 +483,14 @@ bool TreelandConnector::sendDestroyGroupVt(int vt) {
     ControlDestroyGroupVtRequest request {
         .vt = vt,
     };
-    std::array<iovec, 2> iov {{
-        { &header, sizeof(header) },
-        { &request, sizeof(request) },
-    }};
-    msghdr message {};
-    message.msg_iov = iov.data();
-    message.msg_iovlen = iov.size();
-    const bool ok = sendmsg(fd, &message, MSG_NOSIGNAL) != -1;
+    struct {
+        ControlHeader header;
+        ControlDestroyGroupVtRequest request;
+    } message {
+        .header = header,
+        .request = request,
+    };
+    const bool ok = sendAll(fd, &message, sizeof(message));
     close(fd);
     return ok;
 }
@@ -464,7 +512,7 @@ void TreelandConnector::handleControlSocket() {
     while (m_controlBuffer.size() >= static_cast<int>(sizeof(ControlHeader))) {
         ControlHeader header {};
         memcpy(&header, m_controlBuffer.constData(), sizeof(header));
-        if (header.size > 4096) {
+        if (header.size > maxControlPayloadSize) {
             qWarning("Invalid dde-seatd control message size %u", header.size);
             disconnectControlSocket();
             return;
@@ -474,22 +522,36 @@ void TreelandConnector::handleControlSocket() {
             return;
 
         const auto payload = m_controlBuffer.constData() + sizeof(ControlHeader);
-        if (header.opcode == ControlVtActive && header.size == sizeof(ControlVtEvent)) {
-            ControlVtEvent event {};
+        if (header.opcode == ControlVtChanged && header.size == sizeof(ControlVtChangeEvent)) {
+            ControlVtChangeEvent event {};
             memcpy(&event, payload, sizeof(event));
-            if (isVtRunningTreeland(event.vt)) {
-                const auto user = findTreelandUserByVt(event.vt);
-                qDebug("Activate Treeland group VT %d for user %s",
-                       event.vt, qPrintable(user));
-                activateSession();
-                enableRender();
-                if (isTreelandGreeterVt(event.vt) || user == QStringLiteral("dde"))
+            const bool oldIsTreelandVt = isVtRunningTreeland(event.oldVt);
+            const bool oldIsGreeterVt = isTreelandGreeterVt(event.oldVt);
+            const auto oldUser = findTreelandUserByVt(event.oldVt);
+            const bool newIsTreelandVt = isVtRunningTreeland(event.newVt);
+            const bool newIsGreeterVt = isTreelandGreeterVt(event.newVt);
+            const auto newUser = findTreelandUserByVt(event.newVt);
+            qInfo("dde-seatd VT change event: oldVt=%d oldIsTreelandVt=%d oldIsGreeterVt=%d oldUser=%s newVt=%d newIsTreelandVt=%d newIsGreeterVt=%d newUser=%s connected=%d",
+                  event.oldVt,
+                  oldIsTreelandVt,
+                  oldIsGreeterVt,
+                  qPrintable(oldUser),
+                  event.newVt,
+                  newIsTreelandVt,
+                  newIsGreeterVt,
+                  qPrintable(newUser),
+                  isConnected());
+            if (newIsTreelandVt) {
+                if (newIsGreeterVt || newUser == QStringLiteral("dde")) {
                     switchToGreeter();
-                else
-                    switchToUser(user);
+                } else {
+                    switchToUser(newUser);
+                }
             } else {
-                deactivateSession();
+                qInfo("External VT %d became active; leaving seat transition to dde-seatd/libseat", event.newVt);
             }
+        } else {
+            qDebug("Ignored dde-seatd control message opcode=%u size=%u", header.opcode, header.size);
         }
         m_controlBuffer.remove(0, messageSize);
     }
@@ -499,6 +561,7 @@ void TreelandConnector::handleControlSocket() {
 
 void TreelandConnector::switchToGreeter() {
     if (isConnected()) {
+        qDebug("Calling treeland switch_to_greeter");
         treeland_ddm_v1_switch_to_greeter(m_ddm);
         wl_display_flush(m_display);
     } else {
@@ -508,37 +571,11 @@ void TreelandConnector::switchToGreeter() {
 
 void TreelandConnector::switchToUser(const QString username) {
     if (isConnected()) {
+        qDebug("Calling treeland switch_to_user: user=%s", qPrintable(username));
         treeland_ddm_v1_switch_to_user(m_ddm, qPrintable(username));
         wl_display_flush(m_display);
     } else {
         qWarning("Treeland is not connected when trying to call switchToUser");
-    }
-}
-
-void TreelandConnector::activateSession() {
-    if (isConnected()) {
-        treeland_ddm_v1_activate_session(m_ddm);
-        wl_display_flush(m_display);
-    } else {
-        qWarning("Treeland is not connected when trying to call activateSession");
-    }
-}
-
-void TreelandConnector::deactivateSession() {
-    if (isConnected()) {
-        treeland_ddm_v1_deactivate_session(m_ddm);
-        wl_display_flush(m_display);
-    } else {
-        qWarning("Treeland is not connected when trying to call deactivateSession");
-    }
-}
-
-void TreelandConnector::enableRender() {
-    if (isConnected()) {
-        treeland_ddm_v1_enable_render(m_ddm);
-        wl_display_flush(m_display);
-    } else {
-        qWarning("Treeland is not connected when trying to call enableRender");
     }
 }
 

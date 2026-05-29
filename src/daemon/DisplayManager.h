@@ -23,6 +23,7 @@
 
 #include <QObject>
 
+#include <QDBusContext>
 #include <QDBusObjectPath>
 #include <QList>
 #include <QDBusUnixFileDescriptor>
@@ -92,7 +93,7 @@ namespace DDM {
     /***************************************************************************
      * org.freedesktop.DisplayManager.Seat
      **************************************************************************/
-    class DisplayManagerSeat: public QObject {
+    class DisplayManagerSeat: public QObject, protected QDBusContext {
         Q_OBJECT
         Q_DISABLE_COPY(DisplayManagerSeat)
         Q_PROPERTY(bool CanSwitch READ CanSwitch CONSTANT)

@@ -1,7 +1,5 @@
 [Unit]
-Requires=
 Requires=dde-seatd.service
-After=
 After=dde-seatd.service
 
 [Service]

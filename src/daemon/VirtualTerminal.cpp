@@ -217,6 +217,33 @@ out:
             return vt;
         }
 
+        static bool waitForVtActivation(int fd, int vt, bool wait) {
+            if (!wait)
+                return true;
+
+            while (true) {
+                if (ioctl(fd, VT_WAITACTIVE, vt) == 0)
+                    return true;
+                if (errno == EINTR)
+                    continue;
+
+                qWarning("Couldn't finalize jump to VT %d: %s", vt, strerror(errno));
+                return false;
+            }
+        }
+
+        static bool requestVtActivation(int fd, int vt, bool wait) {
+            while (true) {
+                if (ioctl(fd, VT_ACTIVATE, vt) == 0)
+                    return waitForVtActivation(fd, vt, wait);
+                if (errno == EINTR)
+                    continue;
+
+                qWarning("Couldn't initiate jump to VT %d: %s", vt, strerror(errno));
+                return false;
+            }
+        }
+
         void activateVt(int vt, bool wait) {
             int fd = open(qPrintable(path(vt)), O_RDWR | O_NOCTTY);
             if (fd == -1) {
@@ -224,19 +251,7 @@ out:
                 return;
             }
 
-            do {
-                errno = 0;
-                if (ioctl(fd, VT_ACTIVATE, vt) < 0) {
-                    if (errno == EINTR)
-                        continue;
-                    qWarning("Couldn't initiate jump to VT %d: %s", vt, strerror(errno));
-                    break;
-                }
-
-                if (wait && ioctl(fd, VT_WAITACTIVE, vt) < 0 && errno != EINTR)
-                    qWarning("Couldn't finalize jump to VT %d: %s", vt, strerror(errno));
-            } while (errno == EINTR);
-
+            requestVtActivation(fd, vt, wait);
             close(fd);
         }
 
@@ -279,21 +294,7 @@ out:
             if (!vt_auto)
                 handleVtSwitches(fd);
 
-            do {
-                errno = 0;
-
-                if (ioctl(fd, VT_ACTIVATE, vt) < 0) {
-                    if (errno == EINTR)
-                        continue;
-
-                    qWarning("Couldn't initiate jump to VT %d: %s", vt, strerror(errno));
-                    break;
-                }
-
-                if (wait && ioctl(fd, VT_WAITACTIVE, vt) < 0 && errno != EINTR)
-                    qWarning("Couldn't finalize jump to VT %d: %s", vt, strerror(errno));
-
-            } while (errno == EINTR);
+            requestVtActivation(fd, vt, wait);
             close(activeVtFd);
             if (vtFd != -1)
                 close(vtFd);
