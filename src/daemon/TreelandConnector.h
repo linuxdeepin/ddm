@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <QObject>
-#include <QLocalSocket>
 #include <QSocketNotifier>
-#include <QByteArray>
+#include <QString>
 
 struct wl_display;
 struct treeland_ddm_v1;
@@ -13,29 +12,19 @@ namespace DDM {
 class TreelandConnector : public QObject {
     Q_OBJECT
 public:
-    TreelandConnector();
+    explicit TreelandConnector(QObject *parent = nullptr);
     ~TreelandConnector();
     bool isConnected();
+    int mainPid();
     void setPrivateObject(struct treeland_ddm_v1 *ddm);
-    void setSignalHandler();
-    void connect(const QString socketPath);
+    void connect(const QString &socketPath);
     void disconnect();
-    int createGroupVtForTreeland(const QString &user, const QString &sessionId);
-    void destroyGroupVt(int vt);
-
     void switchToGreeter();
-    void switchToUser(const QString username);
-private:
-    bool connectControlSocket();
-    void disconnectControlSocket();
-    void handleControlSocket();
-    int treelandMainPid() const;
-    bool sendDestroyGroupVt(int vt);
+    void switchToUser(const QString &username);
 
+private:
     struct wl_display *m_display { nullptr };
     QSocketNotifier *m_notifier { nullptr };
-    QLocalSocket *m_controlSocket { nullptr };
     struct treeland_ddm_v1 *m_ddm { nullptr };
-    QByteArray m_controlBuffer;
 };
 }

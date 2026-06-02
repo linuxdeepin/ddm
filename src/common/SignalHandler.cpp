@@ -32,7 +32,6 @@
 namespace DDM {
     int sigintFd[2];
     int sigtermFd[2];
-    int sigcustomFd[2];
 
     SignalHandler::SignalHandler(QObject *parent) : QObject(parent) {
         initialize();
@@ -45,9 +44,6 @@ namespace DDM {
 
         snterm = new QSocketNotifier(sigtermFd[1], QSocketNotifier::Read, this);
         connect(snterm, &QSocketNotifier::activated, this, &SignalHandler::handleSigterm);
-
-        sncustom = new QSocketNotifier(sigcustomFd[1], QSocketNotifier::Read, this);
-        connect(sncustom, &QSocketNotifier::activated, this, &SignalHandler::handleSigCustom);
     }
 
     SignalHandler::~SignalHandler() {
@@ -55,17 +51,12 @@ namespace DDM {
         sa_default.sa_handler = SIG_DFL;
         sigaction(SIGINT, &sa_default, NULL);
         sigaction(SIGTERM, &sa_default, NULL);
-        for (int signal : customSignals)
-            sigaction(signal, &sa_default, NULL);
         snint->setEnabled(false);
         snterm->setEnabled(false);
-        sncustom->setEnabled(false);
         ::close(sigintFd[0]);
         ::close(sigintFd[1]);
         ::close(sigtermFd[0]);
         ::close(sigtermFd[1]);
-        ::close(sigcustomFd[0]);
-        ::close(sigcustomFd[1]);
     }
 
     void SignalHandler::initialize() {
@@ -95,31 +86,6 @@ namespace DDM {
             return;
         }
 
-        if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sigcustomFd))
-            qCritical() << "Failed to create socket pair for custom signals handling.";
-    }
-
-    void SignalHandler::addCustomSignal(int signal)
-    {
-        struct sigaction sigcustom = { };
-        sigcustom.sa_handler = SignalHandler::customSignalHandler;
-        sigemptyset(&sigcustom.sa_mask);
-        sigcustom.sa_flags = SA_RESTART;
-
-        if (sigaction(signal, &sigcustom, 0) < 0) {
-            qCritical() << "Failed to set up " << strsignal(signal) << " handler.";
-            return;
-        }
-
-        sigset_t set;
-        sigemptyset(&set);
-        sigaddset(&set, signal);
-        if (sigprocmask(SIG_UNBLOCK, &set, nullptr) < 0) {
-            qCritical() << "Failed to unblock " << strsignal(signal) << " handler.";
-            return;
-        }
-
-        customSignals.append(signal);
     }
 
     void SignalHandler::intSignalHandler(int) {
@@ -134,13 +100,6 @@ namespace DDM {
         char a = 1;
         if (::write(sigtermFd[0], &a, sizeof(a)) == -1) {
             qCritical() << "Error writing to the SIGTERM handler";
-            return;
-        }
-    }
-
-    void SignalHandler::customSignalHandler(int signal) {
-        if (::write(sigcustomFd[0], &signal, sizeof(signal)) == -1) {
-            qCritical() << "Error writing to the " << strsignal(signal) << " handler";
             return;
         }
     }
@@ -188,28 +147,5 @@ namespace DDM {
         // enable notifier
         snterm->setEnabled(true);
     }
-
-    void SignalHandler::handleSigCustom() {
-        // disable notifier
-        sncustom->setEnabled(false);
-
-        // read from socket
-        int signal;
-        if (::read(sigcustomFd[1], &signal, sizeof(signal)) == -1) {
-            // something went wrong!
-            qCritical() << "Error reading from the socket";
-            return;
-        }
-
-        // log event
-        qWarning() << "Signal received: " << strsignal(signal);
-
-        // emit signal
-        emit customSignalReceived(signal);
-
-        // enable notifier
-        sncustom->setEnabled(true);
-    }
-
 
 }

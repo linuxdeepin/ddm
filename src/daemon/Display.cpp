@@ -25,6 +25,7 @@
 #include "Auth.h"
 #include "Configuration.h"
 #include "DaemonApp.h"
+#include "DdeSeatdControl.h"
 #include "DisplayManager.h"
 #include "Messages.h"
 #include "SeatManager.h"
@@ -36,23 +37,20 @@
 
 #include "config.h"
 #include "Login1Manager.h"
-#include "VirtualTerminal.h"
 
 #include <QDBusConnection>
 #include <QDebug>
 #include <QFile>
 #include <QLocalSocket>
 #include <QScopeGuard>
-#include <QTimer>
 
-#include <fcntl.h>
-#include <linux/vt.h>
 #include <pwd.h>
 #include <qstringliteral.h>
 #include <systemd/sd-login.h>
-#include <sys/ioctl.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <linux/vt.h>
+#include <utility>
 
 #define STRINGIFY(x) #x
 
@@ -90,18 +88,18 @@ namespace DDM {
         if (!isTtyInUse(QStringLiteral("tty" STRINGIFY(DDM_INITIAL_VT)))) {
             return DDM_INITIAL_VT;
         }
-        const auto vt = VirtualTerminal::currentVt();
+        const auto vt = daemonApp->seatdControl()->activeVt();
         if (vt > 0 && !isTtyInUse(QStringLiteral("tty%1").arg(vt))) {
             return vt;
         }
-        return VirtualTerminal::setUpNewVt();
+        return daemonApp->seatdControl()->findAvailableVt();
     }
 
     static bool isVtReservedByDdm(int vt) {
-        for (Display *display : daemonApp->seatManager()->displays) {
+        for (Display *display : std::as_const(daemonApp->seatManager()->displays)) {
             if (display->terminalId == vt)
                 return true;
-            for (Auth *auth : display->auths) {
+            for (Auth *auth : std::as_const(display->auths)) {
                 if (auth->tty == vt)
                     return true;
             }
@@ -117,7 +115,7 @@ namespace DDM {
                 return vt;
         }
 
-        return VirtualTerminal::setUpNewVt();
+        return daemonApp->seatdControl()->findAvailableVt();
     }
 
     Display::Display(SeatManager *parent, QString name)
@@ -181,7 +179,10 @@ namespace DDM {
         if (m_started)
             return true;
 
-        VirtualTerminal::jumpToVt(terminalId, false);
+        if (!daemonApp->seatdControl()->requestSwitchVt(terminalId)) {
+            qCritical() << "Failed to switch to greeter VT" << terminalId;
+            return false;
+        }
         if (!m_treeland->start())
             return false;
 
@@ -329,7 +330,8 @@ namespace DDM {
         QByteArray cookie;
         if (session.isSingleMode()) {
             auth->type = Treeland;
-            auth->tty = daemonApp->treelandConnector()->createGroupVtForTreeland(user, sessionId);
+            const int ownerPid = daemonApp->treelandConnector()->mainPid();
+            auth->tty = daemonApp->seatdControl()->createGroupVt(ownerPid, user, sessionId);
             if (auth->tty <= 0) {
                 qCritical() << "Failed to allocate grouped VT for Treeland user session";
                 auths.removeAll(auth);
@@ -342,6 +344,13 @@ namespace DDM {
         } else {
             auth->type = Wayland;
             auth->tty = fetchAvailableUserVt();
+        }
+
+        if (auth->tty <= 0) {
+            qCritical() << "Failed to allocate VT for user session";
+            auths.removeAll(auth);
+            delete auth;
+            return;
         }
 
         qInfo() << "Authentication succeeded for user" << user << ", opening session"
@@ -401,7 +410,7 @@ namespace DDM {
         if (xdgSessionId <= 0) {
             qCritical() << "Failed to open logind session for user" << user;
             if (auth->type == Treeland)
-                daemonApp->treelandConnector()->destroyGroupVt(auth->tty);
+                daemonApp->seatdControl()->destroyGroupVt(auth->tty);
             auths.removeAll(auth);
             delete auth;
             return;
@@ -412,7 +421,7 @@ namespace DDM {
             auths.removeAll(auth);
             daemonApp->displayManager()->RemoveSession(auth->sessionId);
             if (auth->type == Treeland)
-                daemonApp->treelandConnector()->destroyGroupVt(auth->tty);
+                daemonApp->seatdControl()->destroyGroupVt(auth->tty);
             delete auth;
         });
         daemonApp->displayManager()->AddSession(sessionId, name, user, auth->tty);
@@ -482,8 +491,8 @@ namespace DDM {
                 manager.UnlockSession(QString::number(auth->xdgSessionId));
                 if (auth->type == Treeland)
                     activateSession(user, auth->xdgSessionId);
-                else
-                    VirtualTerminal::jumpToVt(auth->tty, false, false);
+                else if (!daemonApp->seatdControl()->requestSwitchVt(auth->tty))
+                    qWarning() << "Failed to switch to session VT" << auth->tty << "for user" << user;
                 qInfo() << "Successfully identified user" << user;
                 return;
             }

@@ -51,6 +51,9 @@ namespace DDM {
         void logindSeatRemoved(const QString &name, const QDBusObjectPath &objectPath);
         void displayStopped();
 
+    public Q_SLOTS:
+        void handleVtChanged(int oldVt, int newVt);
+
     private:
         void startDisplay(Display *display, int tryNr = 1);
     };

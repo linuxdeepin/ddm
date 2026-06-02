@@ -6,10 +6,12 @@
 #include "UserSession.h"
 
 #include "DaemonApp.h"
+#include "DdeSeatdControl.h"
 #include "Login1Manager.h"
 #include "Login1Session.h"
 #include "SignalHandler.h"
-#include "VirtualTerminal.h"
+#include "TtyUtils.h"
+#include "TreelandConnector.h"
 
 #include <pwd.h>
 #include <security/pam_appl.h>
@@ -229,8 +231,13 @@ namespace DDM {
             return -1;
         }
 
-        // Here is most safe place to jump VT
-        VirtualTerminal::jumpToVt(tty, false, false);
+        // Here is most safe place to request the VT switch before opening the session.
+        if (!daemonApp->seatdControl()->requestSwitchVt(tty)) {
+            qWarning() << "[Auth] Failed to switch to VT" << tty << ":" << strerror(errno);
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return -1;
+        }
 
         sessionLeaderPid = fork();
         switch (sessionLeaderPid) {
@@ -379,7 +386,7 @@ namespace DDM {
         CHECK_RET_OPEN
 
         // Set PAM_TTY
-        QString vtPath = VirtualTerminal::path(tty);
+        QString vtPath = TtyUtils::path(tty);
         d->ret = pam_set_item(d->handle, PAM_TTY, qPrintable(vtPath));
         CHECK_RET_OPEN
 
