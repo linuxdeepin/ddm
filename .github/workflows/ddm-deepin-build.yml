@@ -23,22 +23,6 @@ jobs:
           apt-get update
           apt-get install -y devscripts equivs git
 
-          # Save the ddm workspace directory
-          DDM_DIR="$PWD"
-          echo "ddm workspace directory: $DDM_DIR"
-
-          # Build and install treeland-protocols locally (required build dependency not from repo)
-          echo "Building treeland-protocols from source (master)"
-          cd /tmp
-          if [ ! -d treeland-protocols ]; then
-            git clone --depth=1 --branch master --single-branch https://github.com/linuxdeepin/treeland-protocols.git
-          fi
-          cd treeland-protocols
-          mk-build-deps --install --remove --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control
-          dpkg-buildpackage -uc -us -b
-          apt-get install -y ../*.deb || dpkg -i ../*.deb || apt-get -f install -y
-          cd "$DDM_DIR"
-
           # Install build-deps defined in ddm/debian/control
           mk-build-deps --install --remove --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' debian/control
 

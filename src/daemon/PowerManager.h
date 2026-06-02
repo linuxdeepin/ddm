@@ -38,6 +38,11 @@ namespace DDM {
 
     public slots:
         Capabilities capabilities() const;
+        bool canPowerOff() const;
+        bool canReboot() const;
+        bool canSuspend() const;
+        bool canHibernate() const;
+        bool canHybridSleep() const;
 
         void powerOff() const;
         void reboot() const;
