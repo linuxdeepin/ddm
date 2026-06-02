@@ -25,9 +25,9 @@
 
 #include "Auth.h"
 #include "Configuration.h"
+#include "TtyUtils.h"
 #include "TreelandConnector.h"
 #include "UserSession.h"
-#include "VirtualTerminal.h"
 #include "XAuth.h"
 
 #include <linux/kd.h>
@@ -43,6 +43,7 @@
 #include <fcntl.h>
 #include <sched.h>
 #include <termios.h>
+#include <utility>
 
 namespace DDM {
     UserSession::UserSession(Auth *parent)
@@ -135,7 +136,7 @@ namespace DDM {
         // the session as stdin so that it stays open without races
         if (auth->type != Display::X11) {
             // open VT and get the fd
-            QString ttyString = VirtualTerminal::path(auth->tty);
+            QString ttyString = TtyUtils::path(auth->tty);
             int vtFd = ::open(qPrintable(ttyString), O_RDWR | O_NOCTTY);
 
             // when this is true we'll take control of the tty
@@ -173,7 +174,8 @@ namespace DDM {
         }
 
         // enter Linux namespaces
-        for (const QString &ns: mainConfig.Namespaces.get()) {
+        const auto namespaces = mainConfig.Namespaces.get();
+        for (const QString &ns : std::as_const(namespaces)) {
             qInfo() << "Entering namespace" << ns;
             int fd = ::open(qPrintable(ns), O_RDONLY);
             if (fd < 0) {

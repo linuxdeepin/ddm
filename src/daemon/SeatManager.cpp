@@ -21,8 +21,11 @@
 #include "SeatManager.h"
 
 #include "Configuration.h"
+#include "Auth.h"
 #include "DaemonApp.h"
 #include "Display.h"
+#include "DisplayManager.h"
+#include "TreelandConnector.h"
 
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -32,8 +35,54 @@
 
 #include "LogindDBusTypes.h"
 #include <Login1Manager.h>
+#include <utility>
 
 namespace DDM {
+    static constexpr auto greeterUserName = "dde";
+
+    static bool isVtRunningTreeland(int vtnr) {
+        for (Display *display : std::as_const(daemonApp->seatManager()->displays)) {
+            if (display->terminalId == vtnr)
+                return true;
+            for (Auth *auth : std::as_const(display->auths))
+                if (auth->tty == vtnr && auth->type == Display::Treeland)
+                    return true;
+        }
+        return false;
+    }
+
+    static bool isTreelandGreeterVt(int vtnr) {
+        for (Display *display : std::as_const(daemonApp->seatManager()->displays)) {
+            if (display->terminalId == vtnr)
+                return true;
+        }
+        return false;
+    }
+
+    static QString findTreelandUserByVt(int vtnr) {
+        if (vtnr <= 0)
+            return {};
+
+        auto user = daemonApp->displayManager()->findUserByVt(vtnr);
+        if (!user.isEmpty())
+            return user;
+
+        for (Display *display : std::as_const(daemonApp->seatManager()->displays)) {
+            for (Auth *auth : std::as_const(display->auths)) {
+                if (auth->tty == vtnr && auth->type == Display::Treeland)
+                    return auth->user;
+            }
+        }
+
+        if (isVtRunningTreeland(vtnr))
+            user = daemonApp->displayManager()->LastActivatedUser();
+        if (!user.isEmpty())
+            return user;
+
+        if (isTreelandGreeterVt(vtnr))
+            return QString::fromLatin1(greeterUserName);
+        return {};
+    }
 
     class LogindSeat : public QObject {
     Q_OBJECT
@@ -112,7 +161,7 @@ namespace DDM {
         connect(watcher, &QDBusPendingCallWatcher::finished, this, [watcher, reply, this]() {
             watcher->deleteLater();
             const auto seats = reply.value();
-            for (const NamedSeatPath &seat : seats) {
+            for (const NamedSeatPath &seat : std::as_const(seats)) {
                 logindSeatAdded(seat.name, seat.path);
             }
         });
@@ -193,6 +242,37 @@ namespace DDM {
         // re-create display
         removeSeat(name);
         createSeat(name);
+    }
+
+    void SeatManager::handleVtChanged(int oldVt, int newVt) {
+        const bool oldIsTreelandVt = isVtRunningTreeland(oldVt);
+        const bool oldIsGreeterVt = isTreelandGreeterVt(oldVt);
+        const auto oldUser = findTreelandUserByVt(oldVt);
+        const bool newIsTreelandVt = isVtRunningTreeland(newVt);
+        const bool newIsGreeterVt = isTreelandGreeterVt(newVt);
+        const auto newUser = findTreelandUserByVt(newVt);
+
+        qInfo("dde-seatd VT change event: oldVt=%d oldIsTreelandVt=%d oldIsGreeterVt=%d oldUser=%s newVt=%d newIsTreelandVt=%d newIsGreeterVt=%d newUser=%s connected=%d",
+              oldVt,
+              oldIsTreelandVt,
+              oldIsGreeterVt,
+              qPrintable(oldUser),
+              newVt,
+              newIsTreelandVt,
+              newIsGreeterVt,
+              qPrintable(newUser),
+              daemonApp->treelandConnector()->isConnected());
+
+        if (!newIsTreelandVt) {
+            qInfo("External VT %d became active; leaving seat transition to dde-seatd/libseat", newVt);
+            return;
+        }
+
+        if (newIsGreeterVt || newUser == QString::fromLatin1(greeterUserName)) {
+            daemonApp->treelandConnector()->switchToGreeter();
+        } else {
+            daemonApp->treelandConnector()->switchToUser(newUser);
+        }
     }
 
     void SeatManager::logindSeatAdded(const QString& name, const QDBusObjectPath& objectPath)

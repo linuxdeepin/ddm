@@ -21,7 +21,6 @@
 #define DDM_SIGNALHANDLER_H
 
 #include <QObject>
-#include <QList>
 
 class QSocketNotifier;
 
@@ -33,30 +32,22 @@ namespace DDM {
         SignalHandler(QObject *parent = 0);
         ~SignalHandler();
 
-        void addCustomSignal(int signal);
-
     signals:
         void sighupReceived();
         void sigintReceived();
         void sigtermReceived();
-        void customSignalReceived(int signal);
 
     private slots:
         void handleSigint();
         void handleSigterm();
-        void handleSigCustom();
 
     private:
         static void initialize();
         static void intSignalHandler(int unused);
         static void termSignalHandler(int unused);
-        static void customSignalHandler(int unused);
 
         QSocketNotifier *snint { nullptr };
         QSocketNotifier *snterm { nullptr };
-        QSocketNotifier *sncustom { nullptr };
-
-        QList<int> customSignals{};
     };
 }
 #endif // DDM_SIGNALHANDLER_H

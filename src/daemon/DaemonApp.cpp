@@ -22,6 +22,7 @@
 
 #include "Configuration.h"
 #include "Constants.h"
+#include "DdeSeatdControl.h"
 #include "DisplayManager.h"
 #include "PowerManager.h"
 #include "SeatManager.h"
@@ -85,7 +86,12 @@ namespace DDM {
         connect(m_signalHandler, &SignalHandler::sigintReceived, this, &DaemonApp::quit);
         connect(m_signalHandler, &SignalHandler::sigtermReceived, this, &DaemonApp::quit);
 
-        m_treelandConnector = new TreelandConnector();
+        m_seatdControl = new DdeSeatdControl(this);
+        m_treelandConnector = new TreelandConnector(this);
+        connect(m_seatdControl, &DdeSeatdControl::vtChanged,
+                m_seatManager, &SeatManager::handleVtChanged);
+        if (!m_seatdControl->connectEventSocket())
+            qWarning() << "Failed to connect dde-seatd event socket during startup";
         // log message
         qDebug() << "Starting...";
 

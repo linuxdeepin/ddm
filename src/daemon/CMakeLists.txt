@@ -20,6 +20,7 @@ configure_file(config.h.in config.h IMMEDIATE @ONLY)
 set(DAEMON_SOURCES
     Auth.cpp
     DaemonApp.cpp
+    DdeSeatdControl.cpp
     Display.cpp
     DisplayManager.cpp
     PowerManager.cpp
@@ -27,7 +28,6 @@ set(DAEMON_SOURCES
     SocketServer.cpp
     TreelandConnector.cpp
     UserSession.cpp
-    VirtualTerminal.cpp
     XorgDisplayServer.cpp
     TreelandDisplayServer.cpp
     ${TREELAND_DDM_SOURCE}
