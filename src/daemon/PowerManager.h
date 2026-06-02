@@ -21,10 +21,10 @@
 #ifndef DDM_POWERMANAGER_H
 #define DDM_POWERMANAGER_H
 
+#include "Messages.h"
+
 #include <QObject>
 #include <QVector>
-
-#include "Messages.h"
 
 namespace DDM {
     class PowerManagerBackend;
@@ -38,6 +38,11 @@ namespace DDM {
 
     public slots:
         Capabilities capabilities() const;
+        bool canPowerOff() const;
+        bool canReboot() const;
+        bool canSuspend() const;
+        bool canHibernate() const;
+        bool canHybridSleep() const;
 
         void powerOff() const;
         void reboot() const;
@@ -48,6 +53,6 @@ namespace DDM {
     private:
         QVector<PowerManagerBackend *> m_backends;
     };
-}
+} // namespace DDM
 
 #endif // DDM_POWERMANAGER_H

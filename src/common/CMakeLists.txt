@@ -3,10 +3,8 @@ set(PUBLIC_HEADERS
     ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.h
     ${CMAKE_SOURCE_DIR}/src/common/Configuration.h
     ${CMAKE_SOURCE_DIR}/src/common/MessageHandler.h
-    ${CMAKE_SOURCE_DIR}/src/common/Messages.h
     ${CMAKE_SOURCE_DIR}/src/common/Session.h
     ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.h
-    ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.h
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.h
     ${CMAKE_BINARY_DIR}/src/common/Constants.h
     ${CMAKE_SOURCE_DIR}/src/common/LogindDBusTypes.h
@@ -17,7 +15,6 @@ set(SRCS
     ${CMAKE_SOURCE_DIR}/src/common/Configuration.cpp
     ${CMAKE_SOURCE_DIR}/src/common/Session.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.cpp
     ${CMAKE_SOURCE_DIR}/src/common/LogindDBusTypes.cpp
 )

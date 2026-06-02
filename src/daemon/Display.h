@@ -29,8 +29,6 @@
 
 #include "Session.h"
 
-class QLocalSocket;
-
 namespace DDM {
     class Auth;
     class XorgDisplayServer;
@@ -70,6 +68,8 @@ namespace DDM {
          * @param xdgSessionId Logind session ID
          */
         void activateSession(const QString &user, int xdgSessionId);
+        void watchUserSession(Auth *auth);
+        void unwatchUserSession(Auth *auth);
 
         /** Seat name */
         QString name{};
@@ -95,28 +95,18 @@ namespace DDM {
          */
         void stop();
 
-        ///////////////////////////////////////////////////
-        // Slots for socket to communicate with Treeland //
-        ///////////////////////////////////////////////////
-
-        void connected(QLocalSocket *socket);
-        void login(QLocalSocket *socket,
-                   const QString &user,
+        void connected();
+        void login(const QString &user,
                    const QString &password,
                    const Session &session);
-        void logout(QLocalSocket *socket, int id);
-        void lock(QLocalSocket *socket, int id);
-        void unlock(QLocalSocket *socket, const QString &user, const QString &password);
+        void logout(int id);
+        void onTreelandLockStateChanged(bool locked);
 
     signals:
         /** Emitted when stop() */
         void stopped();
 
-        /////////////////////////////////////////////////////
-        // Signals for socket to communicate with Treeland //
-        /////////////////////////////////////////////////////
-        
-        void loginFailed(QLocalSocket *socket, const QString &user);
+        void loginFailed(const QString &user);
 
     private:
         /** Indicates whether the display is started */
@@ -130,6 +120,11 @@ namespace DDM {
 
         /** Socket server for communication with Treeland */
         SocketServer *m_socketServer { nullptr };
+
+        int m_activeTreelandSessionId { 0 };
+        bool m_treelandLocked { false };
+        qint64 m_lockBackWindowStart { 0 };
+        int m_lockBackCount { 0 };
     };
 }
 
