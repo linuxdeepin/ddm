@@ -85,7 +85,6 @@ namespace DDM {
         connect(m_signalHandler, &SignalHandler::sigintReceived, this, &DaemonApp::quit);
         connect(m_signalHandler, &SignalHandler::sigtermReceived, this, &DaemonApp::quit);
 
-        m_treelandConnector = new TreelandConnector();
         // log message
         qDebug() << "Starting...";
 
