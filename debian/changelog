@@ -1,3 +1,14 @@
+ddm (0.3.5) unstable; urgency=medium
+
+  * refactor(vt): route VT control through dde-seatd
+  * fix(daemon): handle Treeland VT activation through dde-seatd
+  * feat(daemon): delegate Treeland VT grouping to dde-seatd
+  * feat(service): wire dde-seatd grouped VT service
+  * fix: vt user lookup to prefer real user sessions over greeter
+    entries
+
+ -- rewine <luhongxu@deepin.org>  Thu, 04 Jun 2026 16:16:59 +0800
+
 ddm (0.3.4) unstable; urgency=medium
 
   * fix: register ddm as display manager via debconf
