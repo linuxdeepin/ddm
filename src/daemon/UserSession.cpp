@@ -132,12 +132,19 @@ namespace DDM {
     void UserSession::childModifier() {
         Auth *auth = qobject_cast<Auth *>(parent());
 
-        // When the display server is part of the session, we leak the VT into
-        // the session as stdin so that it stays open without races
+        // When the display server is part of the session, leak the VT into
+        // the session as stdin so that it stays open without races. Treeland
+        // single-mode sessions run under an already active compositor, so they
+        // must not take the VT as their controlling terminal.
         if (auth->type != Display::X11) {
-            // open VT and get the fd
-            QString ttyString = TtyUtils::path(auth->tty);
-            int vtFd = ::open(qPrintable(ttyString), O_RDWR | O_NOCTTY);
+            QString ttyString;
+            int vtFd = -1;
+
+            if (auth->type != Display::Treeland) {
+                // open VT and get the fd
+                ttyString = TtyUtils::path(auth->tty);
+                vtFd = ::open(qPrintable(ttyString), O_RDWR | O_NOCTTY);
+            }
 
             // when this is true we'll take control of the tty
             bool takeControl = false;
