@@ -59,6 +59,14 @@ namespace DDM {
         return false;
     }
 
+    static Display *findDisplayByGreeterVt(int vtnr) {
+        for (Display *display : std::as_const(daemonApp->seatManager()->displays)) {
+            if (display->terminalId == vtnr)
+                return display;
+        }
+        return nullptr;
+    }
+
     static QString findTreelandUserByVt(int vtnr) {
         if (vtnr <= 0)
             return {};
@@ -214,6 +222,7 @@ namespace DDM {
             if (display->name == name) {
                 // switch to greeter
                 display->activateSession("dde", 0);
+                daemonApp->treelandConnector()->lock();
                 return;
             }
         }
@@ -269,7 +278,9 @@ namespace DDM {
         }
 
         if (newIsGreeterVt || newUser == QString::fromLatin1(greeterUserName)) {
-            daemonApp->treelandConnector()->switchToGreeter();
+            if (auto *display = findDisplayByGreeterVt(newVt))
+                display->activateSession(QString::fromLatin1(greeterUserName), 0);
+            daemonApp->treelandConnector()->lock();
         } else {
             daemonApp->treelandConnector()->switchToUser(newUser);
         }
