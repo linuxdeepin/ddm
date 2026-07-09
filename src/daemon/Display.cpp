@@ -488,11 +488,14 @@ namespace DDM {
                 OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                              Logind::managerPath(),
                                                              QDBusConnection::systemBus());
-                manager.UnlockSession(QString::number(auth->xdgSessionId));
-                if (auth->type == Treeland)
+                if (auth->type == Treeland) {
                     activateSession(user, auth->xdgSessionId);
-                else if (!daemonApp->seatdControl()->requestSwitchVt(auth->tty))
-                    qWarning() << "Failed to switch to session VT" << auth->tty << "for user" << user;
+                    manager.UnlockSession(QString::number(auth->xdgSessionId));
+                } else {
+                    manager.UnlockSession(QString::number(auth->xdgSessionId));
+                    if (!daemonApp->seatdControl()->requestSwitchVt(auth->tty))
+                        qWarning() << "Failed to switch to session VT" << auth->tty << "for user" << user;
+                }
                 qInfo() << "Successfully identified user" << user;
                 return;
             }
