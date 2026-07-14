@@ -17,10 +17,52 @@
 #include <security/pam_appl.h>
 #include <signal.h>
 #include <unistd.h>
+#include <climits>
+#include <sys/syscall.h>
 #include <utmp.h>
 #include <utmpx.h>
 
 namespace DDM {
+
+#ifdef SYS_close_range
+    bool tryCloseInheritedWithCloseRange(int preservedFd)
+    {
+        const unsigned int first = STDERR_FILENO + 1;
+        const unsigned int last  = UINT_MAX;
+
+        // No preserved FD in range: just close everything
+        if (preservedFd < 0 || static_cast<unsigned int>(preservedFd) < first)
+            return syscall(SYS_close_range, first, last, 0) == 0;
+
+        const unsigned int uPreservedFd = static_cast<unsigned int>(preservedFd);
+
+        // Close [first, preservedFd - 1]
+        if (uPreservedFd > first) {
+            if (syscall(SYS_close_range, first, uPreservedFd - 1, 0) == -1)
+                return false;
+        }
+
+        // Close [preservedFd + 1, last]
+        if (uPreservedFd < last) {
+            if (syscall(SYS_close_range, uPreservedFd + 1, last, 0) == -1)
+                return false;
+        }
+        return true;
+    }
+#endif
+
+    void closeInheritedFileDescriptors(int preservedFd)
+    {
+#ifdef SYS_close_range
+        if (tryCloseInheritedWithCloseRange(preservedFd))
+            return;
+#endif
+        const long maxFd = sysconf(_SC_OPEN_MAX);
+        for (int fd = STDERR_FILENO + 1; fd < maxFd; ++fd) {
+            if (fd != preservedFd)
+                close(fd);
+        }
+    }
 
     ///////////////////////////
     // utmp helper functions //
@@ -255,6 +297,10 @@ namespace DDM {
             // Delete old signal handlers, in order to close old fds
             // which are shared with the parent process.
             delete daemonApp->signalHandler();
+            // The session leader must not keep daemon-owned sockets alive.
+            // In particular, an inherited system bus fd would retain DDM's
+            // well-known names after the daemon exits.
+            closeInheritedFileDescriptors(pipefd[1]);
 
             // Restore default SIGINT and SIGTERM handlers. We need
             // the signal hander to terminate ourself, since we're
