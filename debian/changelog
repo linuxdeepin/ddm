@@ -1,3 +1,10 @@
+ddm (0.3.7) unstable; urgency=medium
+
+  * fix(auth): release daemon descriptors in session child
+  * chore: prioritize ddm and drop treeland override
+
+ -- rewine <luhongxu@deepin.org>  Fri, 17 Jul 2026 11:26:05 +0800
+
 ddm (0.3.6) unstable; urgency=medium
 
   * fix(session): avoid tty control in Treeland
