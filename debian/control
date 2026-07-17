@@ -6,12 +6,11 @@ Build-Depends: debhelper-compat (= 13),
                extra-cmake-modules (>= 1.4.0~),
                libpam0g-dev,
                libsystemd-dev [linux-any],
-               libwayland-dev,
                libxau-dev,
                pkg-config,
                qt6-base-dev (>= 6.6.1~),
+               qt6-remoteobjects-dev,
                systemd [linux-any],
-               treeland-protocols,
 Standards-Version: 4.6.0
 Section: libs
 Homepage: https://github.com/linuxdeepin/ddm.git

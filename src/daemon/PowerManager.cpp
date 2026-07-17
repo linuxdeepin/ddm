@@ -22,7 +22,6 @@
 
 #include "Configuration.h"
 #include "DaemonApp.h"
-#include "Messages.h"
 
 #include <QDBusConnectionInterface>
 #include <QDBusInterface>
@@ -35,13 +34,32 @@ namespace DDM {
     /************************************************/
     class PowerManagerBackend {
     public:
-        PowerManagerBackend() {
+        PowerManagerBackend() { }
+
+        virtual ~PowerManagerBackend() { }
+
+        Capabilities capabilities() const {
+            Capabilities caps = Capability::None;
+
+            if (canPowerOff())
+                caps |= Capability::PowerOff;
+            if (canReboot())
+                caps |= Capability::Reboot;
+            if (canSuspend())
+                caps |= Capability::Suspend;
+            if (canHibernate())
+                caps |= Capability::Hibernate;
+            if (canHybridSleep())
+                caps |= Capability::HybridSleep;
+
+            return caps;
         }
 
-        virtual ~PowerManagerBackend() {
-        }
-
-        virtual Capabilities capabilities() const = 0;
+        virtual bool canPowerOff() const = 0;
+        virtual bool canReboot() const = 0;
+        virtual bool canSuspend() const = 0;
+        virtual bool canHibernate() const = 0;
+        virtual bool canHybridSleep() const = 0;
 
         virtual void powerOff() const = 0;
         virtual void reboot() const = 0;
@@ -54,37 +72,41 @@ namespace DDM {
     /* UPOWER BACKEND                             */
     /**********************************************/
 
-const QString UPOWER_PATH = QStringLiteral("/org/freedesktop/UPower");
-const QString UPOWER_SERVICE = QStringLiteral("org.freedesktop.UPower");
-const QString UPOWER_OBJECT = QStringLiteral("org.freedesktop.UPower");
+    const QString UPOWER_PATH = QStringLiteral("/org/freedesktop/UPower");
+    const QString UPOWER_SERVICE = QStringLiteral("org.freedesktop.UPower");
+    const QString UPOWER_OBJECT = QStringLiteral("org.freedesktop.UPower");
 
     class UPowerBackend : public PowerManagerBackend {
     public:
-        UPowerBackend(const QString & service, const QString & path, const QString & interface) {
-            m_interface = new QDBusInterface(service, path, interface, QDBusConnection::systemBus());
+        UPowerBackend(const QString &service, const QString &path, const QString &interface) {
+            m_interface =
+                new QDBusInterface(service, path, interface, QDBusConnection::systemBus());
         }
 
         ~UPowerBackend() {
             delete m_interface;
         }
 
-        Capabilities capabilities() const {
-            Capabilities caps = Capability::PowerOff | Capability::Reboot;
+        bool canPowerOff() const {
+            return true;
+        }
 
-            QDBusReply<bool> reply;
+        bool canReboot() const {
+            return true;
+        }
 
-            // suspend
-            reply = m_interface->call(QStringLiteral("SuspendAllowed"));
-            if (reply.isValid() && reply.value())
-                caps |= Capability::Suspend;
+        bool canSuspend() const {
+            const QDBusReply<bool> reply = m_interface->call(QStringLiteral("SuspendAllowed"));
+            return reply.isValid() && reply.value();
+        }
 
-            // hibernate
-            reply = m_interface->call(QStringLiteral("HibernateAllowed"));
-            if (reply.isValid() && reply.value())
-                caps |= Capability::Hibernate;
+        bool canHibernate() const {
+            const QDBusReply<bool> reply = m_interface->call(QStringLiteral("HibernateAllowed"));
+            return reply.isValid() && reply.value();
+        }
 
-            // return capabilities
-            return caps;
+        bool canHybridSleep() const {
+            return false;
         }
 
         void powerOff() const {
@@ -107,67 +129,53 @@ const QString UPOWER_OBJECT = QStringLiteral("org.freedesktop.UPower");
             m_interface->call(QStringLiteral("Hibernate"));
         }
 
-        void hybridSleep() const {
-        }
+        void hybridSleep() const { }
 
     private:
-        QDBusInterface *m_interface { nullptr };
+        QDBusInterface *m_interface{ nullptr };
     };
 
     /**********************************************/
     /* LOGIN1 && ConsoleKit2 BACKEND              */
     /**********************************************/
 
-const QString LOGIN1_SERVICE = QStringLiteral("org.freedesktop.login1");
-const QString LOGIN1_PATH = QStringLiteral("/org/freedesktop/login1");
-const QString LOGIN1_OBJECT = QStringLiteral("org.freedesktop.login1.Manager");
+    const QString LOGIN1_SERVICE = QStringLiteral("org.freedesktop.login1");
+    const QString LOGIN1_PATH = QStringLiteral("/org/freedesktop/login1");
+    const QString LOGIN1_OBJECT = QStringLiteral("org.freedesktop.login1.Manager");
 
-const QString CK2_SERVICE = QStringLiteral("org.freedesktop.ConsoleKit");
-const QString CK2_PATH = QStringLiteral("/org/freedesktop/ConsoleKit/Manager");
-const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
+    const QString CK2_SERVICE = QStringLiteral("org.freedesktop.ConsoleKit");
+    const QString CK2_PATH = QStringLiteral("/org/freedesktop/ConsoleKit/Manager");
+    const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
 
     class SeatManagerBackend : public PowerManagerBackend {
     public:
-        SeatManagerBackend(const QString & service, const QString & path, const QString & interface) {
-            m_interface = new QDBusInterface(service, path, interface, QDBusConnection::systemBus());
+        SeatManagerBackend(const QString &service, const QString &path, const QString &interface) {
+            m_interface =
+                new QDBusInterface(service, path, interface, QDBusConnection::systemBus());
         }
 
         ~SeatManagerBackend() {
             delete m_interface;
         }
 
-        Capabilities capabilities() const {
-            Capabilities caps = Capability::None;
+        bool canPowerOff() const {
+            return can(QStringLiteral("CanPowerOff"));
+        }
 
-            QDBusReply<QString> reply;
+        bool canReboot() const {
+            return can(QStringLiteral("CanReboot"));
+        }
 
-            // power off
-            reply = m_interface->call(QStringLiteral("CanPowerOff"));
-            if (reply.isValid() && (reply.value() == QLatin1String("yes")))
-                caps |= Capability::PowerOff;
+        bool canSuspend() const {
+            return can(QStringLiteral("CanSuspend"));
+        }
 
-            // reboot
-            reply = m_interface->call(QStringLiteral("CanReboot"));
-            if (reply.isValid() && (reply.value() == QLatin1String("yes")))
-                caps |= Capability::Reboot;
+        bool canHibernate() const {
+            return can(QStringLiteral("CanHibernate"));
+        }
 
-            // suspend
-            reply = m_interface->call(QStringLiteral("CanSuspend"));
-            if (reply.isValid() && (reply.value() == QLatin1String("yes")))
-                caps |= Capability::Suspend;
-
-            // hibernate
-            reply = m_interface->call(QStringLiteral("CanHibernate"));
-            if (reply.isValid() && (reply.value() == QLatin1String("yes")))
-                caps |= Capability::Hibernate;
-
-            // hybrid sleep
-            reply = m_interface->call(QStringLiteral("CanHybridSleep"));
-            if (reply.isValid() && (reply.value() == QLatin1String("yes")))
-                caps |= Capability::HybridSleep;
-
-            // return capabilities
-            return caps;
+        bool canHybridSleep() const {
+            return can(QStringLiteral("CanHybridSleep"));
         }
 
         void powerOff() const {
@@ -190,14 +198,20 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
             m_interface->call(QStringLiteral("HybridSleep"), true);
         }
 
+        bool can(const QString &method) const {
+            const QDBusReply<QString> reply = m_interface->call(method);
+            return reply.isValid() && reply.value() == QLatin1String("yes");
+        }
+
     private:
-        QDBusInterface *m_interface { nullptr };
+        QDBusInterface *m_interface{ nullptr };
     };
 
     /**********************************************/
     /* POWER MANAGER                              */
     /**********************************************/
-    PowerManager::PowerManager(QObject *parent) : QObject(parent) {
+    PowerManager::PowerManager(QObject *parent)
+        : QObject(parent) {
         QDBusConnectionInterface *interface = QDBusConnection::systemBus().interface();
 
         // check if login1 interface exists
@@ -221,15 +235,60 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     Capabilities PowerManager::capabilities() const {
         Capabilities caps = Capability::None;
 
-        for (PowerManagerBackend *backend: m_backends)
+        for (PowerManagerBackend *backend : m_backends)
             caps |= backend->capabilities();
 
         return caps;
     }
 
+    bool PowerManager::canPowerOff() const {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canPowerOff())
+                return true;
+        }
+
+        return false;
+    }
+
+    bool PowerManager::canReboot() const {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canReboot())
+                return true;
+        }
+
+        return false;
+    }
+
+    bool PowerManager::canSuspend() const {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canSuspend())
+                return true;
+        }
+
+        return false;
+    }
+
+    bool PowerManager::canHibernate() const {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canHibernate())
+                return true;
+        }
+
+        return false;
+    }
+
+    bool PowerManager::canHybridSleep() const {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canHybridSleep())
+                return true;
+        }
+
+        return false;
+    }
+
     void PowerManager::powerOff() const {
-        for (PowerManagerBackend *backend: m_backends) {
-            if (backend->capabilities() & Capability::PowerOff) {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canPowerOff()) {
                 backend->powerOff();
                 break;
             }
@@ -237,8 +296,8 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::reboot() const {
-        for (PowerManagerBackend *backend: m_backends) {
-            if (backend->capabilities() & Capability::Reboot) {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canReboot()) {
                 backend->reboot();
                 break;
             }
@@ -246,8 +305,8 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::suspend() const {
-        for (PowerManagerBackend *backend: m_backends) {
-            if (backend->capabilities() & Capability::Suspend) {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canSuspend()) {
                 backend->suspend();
                 break;
             }
@@ -255,8 +314,8 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::hibernate() const {
-        for (PowerManagerBackend *backend: m_backends) {
-            if (backend->capabilities() & Capability::Hibernate) {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canHibernate()) {
                 backend->hibernate();
                 break;
             }
@@ -264,11 +323,11 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
     }
 
     void PowerManager::hybridSleep() const {
-        for (PowerManagerBackend *backend: m_backends) {
-            if (backend->capabilities() & Capability::HybridSleep) {
+        for (PowerManagerBackend *backend : m_backends) {
+            if (backend->canHybridSleep()) {
                 backend->hybridSleep();
                 break;
             }
         }
     }
-}
+} // namespace DDM

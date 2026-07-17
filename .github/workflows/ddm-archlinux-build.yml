@@ -1,7 +1,6 @@
 name: Build ddm on Arch Linux
 
 # Dependencies are based on the official ArchLinux PKGBUILD
-# treeland-protocols-git is installed from source
 
 on:
   push:
@@ -21,21 +20,7 @@ jobs:
 
       - name: Install base dependencies
         run: |
-          pacman -S --noconfirm --noprogressbar base-devel bash gcc-libs glibc libxau pam qt6-base qt6-declarative systemd-libs ttf-font xorg-server xorg-xauth git extra-cmake-modules python-docutils qt6-tools treeland-protocols ninja
-
-      - name: Build and Install treeland-protocols
-        run: |
-          echo "Building treeland-protocols from source..."
-          git clone https://github.com/linuxdeepin/treeland-protocols.git --depth 1
-          cd treeland-protocols
-          cmake -B build \
-            -DCMAKE_INSTALL_LIBDIR=lib \
-            -DCMAKE_INSTALL_LIBEXECDIR=lib \
-            -DCMAKE_INSTALL_PREFIX=/usr \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build build
-          cmake --install build
-          echo "✅ treeland-protocols built and installed from source"
+          pacman -S --noconfirm --noprogressbar base-devel bash gcc-libs glibc libxau pam qt6-base qt6-declarative qt6-remoteobjects systemd-libs ttf-font xorg-server xorg-xauth git extra-cmake-modules python-docutils qt6-tools ninja
 
       - uses: actions/checkout@v4
         with:

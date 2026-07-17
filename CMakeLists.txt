@@ -73,14 +73,8 @@ pkg_search_module(LibSystemd REQUIRED IMPORTED_TARGET libsystemd)
 # XAU
 pkg_search_module(LibXau REQUIRED IMPORTED_TARGET xau)
 
-# Wayland client
-pkg_search_module(WaylandClient REQUIRED IMPORTED_TARGET wayland-client)
-
-# TreelandProtocols
-find_package(TreelandProtocols 0.5.3  REQUIRED)
-
 # Qt6
-find_package(Qt6 CONFIG REQUIRED Core DBus Network)
+find_package(Qt6 CONFIG REQUIRED Core DBus Network RemoteObjects)
 qt_standard_project_setup(REQUIRES 6.6)
 
 # Uninstall target
