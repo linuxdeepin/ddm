@@ -1,247 +1,237 @@
 /***************************************************************************
-* Copyright (c) 2015 Pier Luigi Fiorini <pierluigi.fiorini@gmail.com>
-* Copyright (c) 2013 Abdurrahman AVCI <abdurrahmanavci@gmail.com>
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation; either version 2 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the
-* Free Software Foundation, Inc.,
-* 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-***************************************************************************/
+ * Copyright (c) 2015 Pier Luigi Fiorini <pierluigi.fiorini@gmail.com>
+ * Copyright (c) 2013 Abdurrahman AVCI <abdurrahmanavci@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the
+ * Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ ***************************************************************************/
 
 #include "SocketServer.h"
 
+#include "Auth.h"
+#include "Configuration.h"
 #include "DaemonApp.h"
-#include "Messages.h"
+#include "Display.h"
 #include "PowerManager.h"
-#include "SocketWriter.h"
 #include "TreelandConnector.h"
-#include "Utils.h"
 
-#include <QLocalServer>
+#include <QAbstractSocket>
+#include <QDir>
+#include <QFileInfo>
+#include <QProcessEnvironment>
+#include <QRemoteObjectHost>
+#include <QUrl>
+
+static constexpr auto ddmRemoteUrl = "local:org.deepin.dde.ddm.qro";
+static constexpr auto ddmRemoteSourceName = "DDMRemote";
+
+namespace {
+    bool executableAllowed(const QString &tryExec) {
+        if (tryExec.isEmpty())
+            return true;
+
+        QFileInfo executable(tryExec);
+        if (executable.isAbsolute())
+            return executable.exists() && executable.isExecutable();
+
+        const auto paths = QProcessEnvironment::systemEnvironment()
+                               .value(QStringLiteral("PATH"))
+                               .split(QLatin1Char(':'), Qt::SkipEmptyParts);
+        for (const auto &path : paths) {
+            executable.setFile(QDir(path), tryExec);
+            if (executable.exists() && executable.isExecutable())
+                return true;
+        }
+
+        return false;
+    }
+
+    void appendSessions(QList<SessionEntry> &entries,
+                        DDM::Session::Type type,
+                        const QStringList &directories) {
+        QStringList sessionFiles;
+        for (const auto &path : directories) {
+            QDir dir(path);
+            dir.setNameFilters({ QStringLiteral("*.desktop") });
+            dir.setFilter(QDir::Files);
+            sessionFiles += dir.entryList();
+        }
+        sessionFiles.removeDuplicates();
+
+        for (const auto &sessionFile : std::as_const(sessionFiles)) {
+            DDM::Session session(type, sessionFile);
+            if (!session.isValid() || session.isHidden() || session.isNoDisplay()
+                || !executableAllowed(session.tryExec())) {
+                continue;
+            }
+
+            SessionEntry entry;
+            entry.setFileName(session.fileName());
+            entry.setType(session.type());
+            entry.setDisplayName(session.displayName());
+            entry.setComment(session.comment());
+            entry.setExec(session.exec());
+
+            if (entry.displayName() == QStringLiteral("Treeland"))
+                entries.prepend(entry);
+            else
+                entries.append(entry);
+        }
+    }
+} // namespace
 
 namespace DDM {
-    SocketServer::SocketServer(QObject *parent) : QObject(parent) {
+    SocketServer::SocketServer(Display *display, QObject *parent)
+        : DDMRemoteSimpleSource(parent)
+        , m_display(display)
+        , m_powerManager(daemonApp->powerManager()) { }
+
+    bool SocketServer::canPowerOff() {
+        return m_powerManager->canPowerOff();
     }
 
-    QString SocketServer::socketAddress() const {
-        if (m_server)
-            return m_server->fullServerName();
-        return QString();
+    bool SocketServer::canReboot() {
+        return m_powerManager->canReboot();
     }
 
-    bool SocketServer::start(const QString &displayName) {
-        // check if the server has been created already
-        if (m_server)
+    bool SocketServer::canSuspend() {
+        return m_powerManager->canSuspend();
+    }
+
+    bool SocketServer::canHibernate() {
+        return m_powerManager->canHibernate();
+    }
+
+    QList<SessionEntry> SocketServer::sessions() {
+        QList<SessionEntry> entries;
+        if (QFileInfo::exists(QStringLiteral("/dev/dri")))
+            appendSessions(entries, Session::WaylandSession, mainConfig.Wayland.SessionDir.get());
+        appendSessions(entries, Session::X11Session, mainConfig.X11.SessionDir.get());
+        return entries;
+    }
+
+    QString SocketServer::lastSession() {
+        return stateConfig.Last.Session.get();
+    }
+
+    QString SocketServer::lastUser() {
+        return stateConfig.Last.User.get();
+    }
+
+    bool SocketServer::rememberLastSession() {
+        return mainConfig.Users.RememberLastSession.get();
+    }
+
+    bool SocketServer::canHybridSleep() {
+        return m_powerManager->canHybridSleep();
+    }
+
+    bool SocketServer::start() {
+        if (m_host)
             return false;
 
-        QString socketName = QStringLiteral("ddm-%1-%2").arg(displayName).arg(generateName(6));
-
-        // log message
         qDebug() << "Socket server starting...";
 
-        // create server
-        m_server = new QLocalServer(this);
-
-        // set server options
-        m_server->setSocketOptions(QLocalServer::UserAccessOption);
-
-        // start listening
-        if (!m_server->listen(socketName)) {
-            // log message
-            qCritical() << "Failed to start socket server.";
-
-            // return fail
+        m_host = new QRemoteObjectHost(QUrl(QString::fromLatin1(ddmRemoteUrl)), this);
+        if (!m_host->enableRemoting(this, QString::fromLatin1(ddmRemoteSourceName))) {
+            qCritical() << "Failed to enable DDMRemote source.";
+            delete m_host;
+            m_host = nullptr;
             return false;
         }
 
-
-        // log message
-        qDebug() << "Socket server started.";
-
-        // connect signals
-        connect(m_server, &QLocalServer::newConnection, this, &SocketServer::newConnection);
-
-        // return success
+        setHostName(daemonApp->hostName());
+        qDebug() << "Socket server started on" << ddmRemoteUrl;
         return true;
     }
 
     void SocketServer::stop() {
-        // check flag
-        if (!m_server)
+        if (!m_host)
             return;
 
-        // log message
         qDebug() << "Socket server stopping...";
-
-        // delete server
-        m_server->deleteLater();
-        m_server = nullptr;
-
-        // log message
+        m_host->deleteLater();
+        m_host = nullptr;
         qDebug() << "Socket server stopped.";
     }
 
-    void SocketServer::newConnection() {
-        // get pending connection
-        QLocalSocket *socket = m_server->nextPendingConnection();
-
-        // connect signals
-        connect(socket, &QLocalSocket::readyRead, this, &SocketServer::readyRead);
-        connect(socket, &QLocalSocket::disconnected, socket, &QLocalSocket::deleteLater);
-        connect(socket, &QLocalSocket::disconnected, this, [this, socket] {
-            emit disconnected(socket);
-        });
+    bool SocketServer::connectGreeter() {
+        qDebug() << "Message received from greeter: Connect";
+        if (!daemonApp->treelandConnector()->connect())
+            return false;
+        m_display->connected();
+        return true;
     }
 
-    void SocketServer::readyRead() {
-        QLocalSocket *socket = qobject_cast<QLocalSocket *>(sender());
-
-        // check socket
-        if (!socket)
-            return;
-
-        // input stream
-        QDataStream input(socket);
-
-        // Qt's QLocalSocket::readyRead is not designed to be called at every socket.write(),
-        // so we need to use a loop to read all the signals.
-        while(socket->bytesAvailable()) {
-            // read message
-            quint32 message;
-            input >> message;
-
-            switch (GreeterMessages(message)) {
-                case GreeterMessages::Connect: {
-                    // log message
-                    qDebug() << "Message received from greeter: Connect";
-
-                    // Connect wayland socket
-                    QString socketPath;
-                    input >> socketPath;
-                    daemonApp->treelandConnector()->connect(socketPath);
-
-                    // send capabilities
-                    SocketWriter(socket) << quint32(DaemonMessages::Capabilities) << quint32(daemonApp->powerManager()->capabilities());
-
-                    // send host name
-                    SocketWriter(socket) << quint32(DaemonMessages::HostName) << daemonApp->hostName();
-
-                    // emit signal
-                    emit connected(socket);
-                }
-                break;
-                case GreeterMessages::Login: {
-                    // log message
-                    qDebug() << "Message received from greeter: Login";
-
-                    // read username, pasword etc.
-                    QString user, password, filename;
-                    Session session;
-                    input >> user >> password >> session;
-
-                    // emit signal
-                    emit login(socket, user, password, session);
-                }
-                break;
-                case GreeterMessages::Logout: {
-                    // log message
-                    qDebug() << "Message received from greeter: Logout";
-                    // read username
-                    int id;
-                    input >> id;
-                    // emit signal
-                    emit logout(socket, id);
-                }
-                break;
-                case GreeterMessages::Lock : {
-                    // log message
-                    qDebug() << "Message received from greeter: Lock";
-                    int id;
-
-                    input >> id;
-                    emit lock(socket, id);
-                }
-                break;
-                case GreeterMessages::Unlock : {
-                    // log message
-                    qDebug() << "Message received from greeter: Unlock";
-                    QString user;
-                    QString password;
-
-                    input >> user >> password;
-                    emit unlock(socket, user, password);
-                }
-                break;
-                case GreeterMessages::PowerOff: {
-                    // log message
-                    qDebug() << "Message received from greeter: PowerOff";
-
-                    // power off
-                    daemonApp->powerManager()->powerOff();
-                }
-                break;
-                case GreeterMessages::Reboot: {
-                    // log message
-                    qDebug() << "Message received from greeter: Reboot";
-
-                    // reboot
-                    daemonApp->powerManager()->reboot();
-                }
-                break;
-                case GreeterMessages::Suspend: {
-                    // log message
-                    qDebug() << "Message received from greeter: Suspend";
-
-                    // suspend
-                    daemonApp->powerManager()->suspend();
-                }
-                break;
-                case GreeterMessages::Hibernate: {
-                    // log message
-                    qDebug() << "Message received from greeter: Hibernate";
-
-                    // hibernate
-                    daemonApp->powerManager()->hibernate();
-                }
-                break;
-                case GreeterMessages::HybridSleep: {
-                    // log message
-                    qDebug() << "Message received from greeter: HybridSleep";
-                    // hybrid sleep
-                    daemonApp->powerManager()->hybridSleep();
-                }
-                break;
-                case GreeterMessages::BackToNormal: {
-                    // log message
-                    qDebug() << "Message received from greeter: Back to normal";
-                    // hybrid sleep
-                    daemonApp->backToNormal();
-                }
-                break;
-                default: {
-                    // log message
-                    qWarning() << "Unknown message" << message;
-                }
-            }
+    void SocketServer::replayUserSessions() {
+        for (Auth *auth : std::as_const(m_display->auths)) {
+            if (auth->sessionOpened)
+                addUserSession(auth->user, auth->xdgSessionId);
         }
-
     }
 
-    void SocketServer::loginFailed(QLocalSocket *socket, const QString &user) {
-        SocketWriter(socket) << quint32(DaemonMessages::LoginFailed) << user;
+    void SocketServer::addUserSession(const QString &user, int sessionId) {
+        if (sessionId > 0)
+            emit userSessionAdded(user, sessionId);
     }
 
-    void SocketServer::informationMessage(QLocalSocket *socket, const QString &message) {
-        SocketWriter(socket) << quint32(DaemonMessages::InformationMessage) << message;
+    void SocketServer::removeUserSession(const QString &user, int sessionId) {
+        if (sessionId > 0)
+            emit userSessionRemoved(user, sessionId);
     }
-}
+
+    bool SocketServer::login(QString user, QString password, int sessionType, QString sessionFile) {
+        qDebug() << "Message received from greeter: Login";
+        Session session(static_cast<Session::Type>(sessionType), sessionFile);
+        m_display->login(user, password, session);
+        return true;
+    }
+
+    bool SocketServer::logout(int id) {
+        qDebug() << "Message received from greeter: Logout";
+        m_display->logout(id);
+        return true;
+    }
+
+    bool SocketServer::powerOff() {
+        qDebug() << "Message received from greeter: PowerOff";
+        m_powerManager->powerOff();
+        return true;
+    }
+
+    bool SocketServer::reboot() {
+        qDebug() << "Message received from greeter: Reboot";
+        m_powerManager->reboot();
+        return true;
+    }
+
+    bool SocketServer::suspend() {
+        qDebug() << "Message received from greeter: Suspend";
+        m_powerManager->suspend();
+        return true;
+    }
+
+    bool SocketServer::hibernate() {
+        qDebug() << "Message received from greeter: Hibernate";
+        m_powerManager->hibernate();
+        return true;
+    }
+
+    bool SocketServer::hybridSleep() {
+        qDebug() << "Message received from greeter: HybridSleep";
+        m_powerManager->hybridSleep();
+        return true;
+    }
+} // namespace DDM

@@ -22,7 +22,6 @@
 
 #include "DaemonApp.h"
 #include "SeatManager.h"
-
 #include "dbus_ddm_displaymanager.h"
 #include "displaymanageradaptor.h"
 #include "seatadaptor.h"
@@ -35,7 +34,8 @@
 const QString DISPLAYMANAGER_SERVICE = QStringLiteral("org.freedesktop.DisplayManager");
 const QString DISPLAYMANAGER_PATH = QStringLiteral("/org/freedesktop/DisplayManager");
 const QString DISPLAYMANAGER_SEAT_PATH = QStringLiteral("/org/freedesktop/DisplayManager/Seat");
-const QString DISPLAYMANAGER_SESSION_PATH = QStringLiteral("/org/freedesktop/DisplayManager/Session");
+const QString DISPLAYMANAGER_SESSION_PATH =
+    QStringLiteral("/org/freedesktop/DisplayManager/Session");
 
 namespace DDM {
     static QString dbusCallerDescription(const QDBusContext &context) {
@@ -67,7 +67,8 @@ namespace DDM {
         return description;
     }
 
-    DisplayManager::DisplayManager(QObject *parent) : QObject(parent) {
+    DisplayManager::DisplayManager(QObject *parent)
+        : QObject(parent) {
         // create adaptor
         new DisplayManagerAdaptor(this);
         new DDMDisplayManagerAdaptor(this);
@@ -92,7 +93,7 @@ namespace DDM {
     ObjectPathList DisplayManager::Seats() const {
         ObjectPathList seats;
 
-        for (DisplayManagerSeat *seat: m_seats)
+        for (DisplayManagerSeat *seat : m_seats)
             seats << ObjectPath(seat->Path());
 
         return seats;
@@ -101,25 +102,11 @@ namespace DDM {
     ObjectPathList DisplayManager::Sessions(DisplayManagerSeat *seat) const {
         ObjectPathList sessions;
 
-        for (DisplayManagerSession *session: m_sessions)
+        for (DisplayManagerSession *session : m_sessions)
             if (seat == nullptr || seat->Name() == session->Seat())
                 sessions << ObjectPath(session->Path());
 
         return sessions;
-    }
-
-    QString DisplayManager::AuthInfo() const {
-        return m_authSocket;
-    }
-
-    void DisplayManager::setAuthInfo(const QString &authSocket) {
-        if (m_authSocket == authSocket) {
-            return;
-        }
-
-        m_authSocket = authSocket;
-
-        Q_EMIT AuthInfoChanged();
     }
 
     QString DisplayManager::LastActivatedUser() const {
@@ -149,7 +136,7 @@ namespace DDM {
 
     void DisplayManager::RemoveSeat(const QString &name) {
         // find seat
-        for (DisplayManagerSeat *seat: m_seats) {
+        for (DisplayManagerSeat *seat : m_seats) {
             if (seat->Name() == name) {
                 // remove from list
                 m_seats.removeAll(seat);
@@ -166,7 +153,10 @@ namespace DDM {
         }
     }
 
-    void DisplayManager::AddSession(const QString &name, const QString &seat, const QString &user, const int &vtnr) {
+    void DisplayManager::AddSession(const QString &name,
+                                    const QString &seat,
+                                    const QString &user,
+                                    const int &vtnr) {
         // create session object
         DisplayManagerSession *session = new DisplayManagerSession(name, seat, user, vtnr, this);
 
@@ -179,7 +169,7 @@ namespace DDM {
 
     void DisplayManager::RemoveSession(const QString &name) {
         // find session
-        for (DisplayManagerSession *session: m_sessions) {
+        for (DisplayManagerSession *session : m_sessions) {
             if (session->Name() == name) {
                 // remove from list
                 m_sessions.removeAll(session);
@@ -203,7 +193,7 @@ namespace DDM {
 
     void DisplayManager::setLastSession(const QString &name) {
         // find session
-        for (DisplayManagerSession *session: m_sessions) {
+        for (DisplayManagerSession *session : m_sessions) {
             if (session->Name() == name) {
                 m_lastSession = ObjectPath(session->Path());
                 Q_EMIT LastSessionChanged(m_lastSession);
@@ -215,15 +205,15 @@ namespace DDM {
     const QString DisplayManager::findUserByVt(int vtnr) {
         QString greeterUser = QStringLiteral("dde");
 
-        for (const auto& session : m_sessions) {
+        for (const auto &session : m_sessions) {
             if (!session) {
                 continue;
             }
 
             if (vtnr == session->VTNr()) {
                 if (session->User() != greeterUser) {
-                    qDebug() << "[DisplayManager] findUserByVt selected user session vtnr="
-                             << vtnr << " user=" << session->User();
+                    qDebug() << "[DisplayManager] findUserByVt selected user session vtnr=" << vtnr
+                             << " user=" << session->User();
                     return session->User();
                 } else {
                     greeterUser = session->User();
@@ -232,8 +222,8 @@ namespace DDM {
         }
 
         if (!greeterUser.isEmpty()) {
-            qDebug() << "[DisplayManager] findUserByVt selected greeter session vtnr="
-                     << vtnr << " user=" << greeterUser;
+            qDebug() << "[DisplayManager] findUserByVt selected greeter session vtnr=" << vtnr
+                     << " user=" << greeterUser;
             return greeterUser;
         }
 
@@ -242,7 +232,9 @@ namespace DDM {
     }
 
     DisplayManagerSeat::DisplayManagerSeat(const QString &name, QObject *parent)
-        : QObject(parent), m_name(name), m_path(DISPLAYMANAGER_SEAT_PATH + name.mid(4)) {
+        : QObject(parent)
+        , m_name(name)
+        , m_path(DISPLAYMANAGER_SEAT_PATH + name.mid(4)) {
         // create adaptor
         new SeatAdaptor(this);
 
@@ -261,16 +253,16 @@ namespace DDM {
     }
 
     void DisplayManagerSeat::SwitchToGreeter() {
-        qWarning() << "DisplayManagerSeat::SwitchToGreeter requested for seat" << m_name
-                   << "from" << dbusCallerDescription(*this);
+        qWarning() << "DisplayManagerSeat::SwitchToGreeter requested for seat" << m_name << "from"
+                   << dbusCallerDescription(*this);
         daemonApp->seatManager()->switchToGreeter(m_name);
     }
 
-    void DisplayManagerSeat::SwitchToGuest(const QString &/*session*/) {
+    void DisplayManagerSeat::SwitchToGuest(const QString & /*session*/) {
         // TODO: IMPLEMENT
     }
 
-    void DisplayManagerSeat::SwitchToUser(const QString &/*user*/, const QString &/*session*/) {
+    void DisplayManagerSeat::SwitchToUser(const QString & /*user*/, const QString & /*session*/) {
         // TODO: IMPLEMENT
     }
 
@@ -279,11 +271,20 @@ namespace DDM {
     }
 
     ObjectPathList DisplayManagerSeat::Sessions() {
-       return daemonApp->displayManager()->Sessions(this);
+        return daemonApp->displayManager()->Sessions(this);
     }
 
-    DisplayManagerSession::DisplayManagerSession(const QString &name, const QString &seat, const QString &user, const int &vtnr, QObject *parent)
-        : QObject(parent), m_name(name), m_path(DISPLAYMANAGER_SESSION_PATH + name.mid(7)), m_seat(seat), m_user(user), m_vtnr(vtnr) {
+    DisplayManagerSession::DisplayManagerSession(const QString &name,
+                                                 const QString &seat,
+                                                 const QString &user,
+                                                 const int &vtnr,
+                                                 QObject *parent)
+        : QObject(parent)
+        , m_name(name)
+        , m_path(DISPLAYMANAGER_SESSION_PATH + name.mid(7))
+        , m_seat(seat)
+        , m_user(user)
+        , m_vtnr(vtnr) {
         // create adaptor
         new SessionAdaptor(this);
 
@@ -320,4 +321,4 @@ namespace DDM {
     const QString &DisplayManagerSession::User() const {
         return m_user;
     }
-}
+} // namespace DDM

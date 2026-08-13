@@ -4,9 +4,6 @@
 #include <QMap>
 #include <QDBusVariant>
 
-class QLocalSocket;
-class QLocalServer;
-
 namespace DDM {
     class Display;
     class SocketServer;
@@ -26,7 +23,6 @@ namespace DDM {
 
     private:
         SocketServer *m_socketServer;
-        QList<QLocalSocket *> m_greeterSockets;
         bool m_started{ false };
     };
 }

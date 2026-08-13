@@ -1,21 +1,3 @@
-# Generate treeland-ddm protocol files
-set(TREELAND_DDM_HEADER ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.h)
-set(TREELAND_DDM_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/treeland-ddm-v1.c)
-
-add_custom_command(
-    OUTPUT ${TREELAND_DDM_HEADER}
-    COMMAND wayland-scanner client-header < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${TREELAND_DDM_HEADER}
-    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml
-    COMMENT "Generating treeland-ddm-v1.h"
-)
-
-add_custom_command(
-    OUTPUT ${TREELAND_DDM_SOURCE}
-    COMMAND wayland-scanner private-code < ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml > ${TREELAND_DDM_SOURCE}
-    DEPENDS ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-ddm-v1.xml
-    COMMENT "Generating treeland-ddm-v1.c"
-)
-
 configure_file(config.h.in config.h IMMEDIATE @ONLY)
 set(DAEMON_SOURCES
     Auth.cpp
@@ -30,7 +12,6 @@ set(DAEMON_SOURCES
     UserSession.cpp
     XorgDisplayServer.cpp
     TreelandDisplayServer.cpp
-    ${TREELAND_DDM_SOURCE}
 )
 
 qt_add_dbus_adaptor(DAEMON_SOURCES "${CMAKE_SOURCE_DIR}/data/interfaces/org.freedesktop.DisplayManager.xml"          "DisplayManager.h" DDM::DisplayManager)
@@ -59,15 +40,21 @@ qt_add_dbus_interface(DAEMON_SOURCES "${CMAKE_SOURCE_DIR}/data/interfaces/org.fr
 qt_add_dbus_interface(DAEMON_SOURCES "${CMAKE_SOURCE_DIR}/data/interfaces/org.freedesktop.login1.User.xml"  "Login1User")
 
 add_executable(ddm ${DAEMON_SOURCES})
+qt_add_repc_sources(ddm
+    ${CMAKE_CURRENT_SOURCE_DIR}/ddmremote.rep
+)
+qt_add_repc_replicas(ddm
+    ${CMAKE_CURRENT_SOURCE_DIR}/treelandremote.rep
+)
 target_link_libraries(ddm
     PRIVATE
         common
     PUBLIC
         Qt6::DBus
         Qt6::Network
+        Qt6::RemoteObjects
         PkgConfig::Pam
         PkgConfig::LibSystemd
-        PkgConfig::WaylandClient
 )
 
 install(TARGETS ddm DESTINATION "${CMAKE_INSTALL_BINDIR}")

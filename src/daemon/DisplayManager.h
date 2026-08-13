@@ -21,12 +21,11 @@
 #ifndef DDM_DISPLAYMANAGER_H
 #define DDM_DISPLAYMANAGER_H
 
-#include <QObject>
-
 #include <QDBusContext>
 #include <QDBusObjectPath>
-#include <QList>
 #include <QDBusUnixFileDescriptor>
+#include <QList>
+#include <QObject>
 
 namespace DDM {
     class DisplayManagerSeat;
@@ -44,7 +43,6 @@ namespace DDM {
         Q_PROPERTY(QList<QDBusObjectPath> Seats READ Seats CONSTANT)
         Q_PROPERTY(QList<QDBusObjectPath> Sessions READ Sessions CONSTANT)
         Q_PROPERTY(QDBusObjectPath LastSession READ LastSession NOTIFY LastSessionChanged CONSTANT)
-        Q_PROPERTY(QString AuthInfo READ AuthInfo NOTIFY AuthInfoChanged)
         Q_PROPERTY(QString LastActivatedUser READ LastActivatedUser NOTIFY LastActivatedUserChanged)
 
     public:
@@ -55,11 +53,11 @@ namespace DDM {
 
         ObjectPathList Seats() const;
         ObjectPathList Sessions(DisplayManagerSeat *seat = nullptr) const;
+
         QDBusObjectPath LastSession() const {
             return m_lastSession;
         }
 
-        QString AuthInfo() const;
         QString LastActivatedUser() const;
 
         const QString findUserByVt(int vtnr);
@@ -67,10 +65,12 @@ namespace DDM {
     public slots:
         void AddSeat(const QString &name);
         void RemoveSeat(const QString &name);
-        void AddSession(const QString &name, const QString &seat, const QString &user, const int &vtnr);
+        void AddSession(const QString &name,
+                        const QString &seat,
+                        const QString &user,
+                        const int &vtnr);
         void RemoveSession(const QString &name);
         void setLastSession(const QString &session);
-        void setAuthInfo(const QString &authSocket);
         void setLastActivatedUser(const QString &lastActivatedUser);
 
     signals:
@@ -79,21 +79,21 @@ namespace DDM {
         void SessionAdded(ObjectPath session);
         void SessionRemoved(ObjectPath session);
         void LastSessionChanged(ObjectPath session);
-        void AuthInfoChanged();
         void LastActivatedUserChanged();
 
     private:
         QList<DisplayManagerSeat *> m_seats;
         QList<DisplayManagerSession *> m_sessions;
         QDBusObjectPath m_lastSession;
-        QString m_authSocket;
         QString m_lastActivatedUser;
     };
 
     /***************************************************************************
      * org.freedesktop.DisplayManager.Seat
      **************************************************************************/
-    class DisplayManagerSeat: public QObject, protected QDBusContext {
+    class DisplayManagerSeat
+        : public QObject
+        , protected QDBusContext {
         Q_OBJECT
         Q_DISABLE_COPY(DisplayManagerSeat)
         Q_PROPERTY(bool CanSwitch READ CanSwitch CONSTANT)
@@ -110,8 +110,14 @@ namespace DDM {
         void SwitchToUser(const QString &user, const QString &session);
         void Lock();
 
-        bool CanSwitch() { return true; }
-        bool HasGuestAccount() { return false; }
+        bool CanSwitch() {
+            return true;
+        }
+
+        bool HasGuestAccount() {
+            return false;
+        }
+
         ObjectPathList Sessions();
 
     private:
@@ -122,13 +128,17 @@ namespace DDM {
     /***************************************************************************
      * org.freedesktop.DisplayManager.Session
      **************************************************************************/
-    class DisplayManagerSession: public QObject {
+    class DisplayManagerSession : public QObject {
         Q_OBJECT
         Q_DISABLE_COPY(DisplayManagerSession)
         Q_PROPERTY(QDBusObjectPath Seat READ SeatPath)
         Q_PROPERTY(QString UserName READ User)
     public:
-        DisplayManagerSession(const QString &name, const QString &seat, const QString &user, const int &vtnr, QObject *parent = 0);
+        DisplayManagerSession(const QString &name,
+                              const QString &seat,
+                              const QString &user,
+                              const int &vtnr,
+                              QObject *parent = 0);
 
         const QString &Name() const;
         const QString &Path() const;
@@ -147,6 +157,6 @@ namespace DDM {
         QString m_user;
         int m_vtnr;
     };
-}
+} // namespace DDM
 
 #endif // DDM_DISPLAYMANAGER_H
