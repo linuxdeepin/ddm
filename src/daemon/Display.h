@@ -119,8 +119,28 @@ namespace DDM {
         void loginFailed(QLocalSocket *socket, const QString &user);
 
     private:
+        /**
+         * Start a user session that has already been authenticated.
+         * Handles VT allocation, display server startup and logind
+         * registration. On failure the auth is removed and deleted.
+         *
+         * @param auth Authenticated Auth object
+         * @param session Session to start
+         * @return true on success, false on failure
+         */
+        bool startUserSession(Auth *auth, const Session &session);
+
+        /**
+         * Start automatic login for the configured user using the
+         * "ddm-autologin" PAM service. No-op if autologin is disabled.
+         */
+        bool startAutologin();
+
         /** Indicates whether the display is started */
         bool m_started{ false };
+
+        /** Indicates whether the greeter connected at least once (since start) */
+        bool m_connectedOnce{ false };
 
         /** Treeland display server */
         TreelandDisplayServer *m_treeland{ nullptr };

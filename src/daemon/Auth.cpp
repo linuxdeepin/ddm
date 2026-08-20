@@ -241,7 +241,7 @@ namespace DDM {
         Q_ASSERT(!user.isEmpty());
 
         qInfo() << "[Auth] Starting...";
-        d->ret = pam_start("ddm", user.toLocal8Bit().constData(), &d->conv, &d->handle);
+        d->ret = pam_start(pamService.toLocal8Bit().constData(), user.toLocal8Bit().constData(), &d->conv, &d->handle);
         CHECK_RET_AUTH
 
         qInfo() << "[Auth] Authenticating user" << user;

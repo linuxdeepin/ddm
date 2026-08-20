@@ -1,0 +1,34 @@
+#%PAM-1.0
+
+# Block login if shell is nologin or false
+auth    required        pam_succeed_if.so shell notin /sbin/nologin:/usr/sbin/nologin:/bin/false:/usr/bin/false
+
+# Block login if they are globally disabled
+auth    requisite       pam_nologin.so
+
+# Load environment from /etc/environment
+auth    required        pam_env.so
+
+# Allow access without authentication
+auth    required        pam_permit.so
+
+# Check account is active, change password if required
+@include common-account
+
+# Can't change password
+password required      pam_deny.so
+
+# Setup session
+session optional       pam_keyinit.so force revoke
+session required       pam_limits.so
+session required       pam_loginuid.so
+session required       pam_systemd.so
+@include common-session
+-session optional      pam_gnome_keyring.so auto_start
+-session optional      pam_kwallet5.so auto_start
+
+# Load environment from /etc/environment
+session required       pam_env.so
+
+# Load environment from /etc/default/locale and ~/.pam_environment
+session required       pam_env.so envfile=/etc/default/locale user_readenv=1

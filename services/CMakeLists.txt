@@ -9,6 +9,7 @@ endif()
 
 if(EXISTS "/etc/debian_version")
     install(FILES debian.ddm.pam DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d RENAME ddm)
+    install(FILES debian.ddm-autologin.pam DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d RENAME ddm-autologin)
 
     # In debian-based systems, seatd uses video group instead of seat
     # group, avoid creating seat group mistakenly by specifying
@@ -17,6 +18,7 @@ if(EXISTS "/etc/debian_version")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/debian.ddm-sysuser.conf" DESTINATION "${SYSTEMD_SYSUSERS_DIR}" RENAME dde.conf)
 else()
     install(FILES ddm.pam DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d RENAME ddm)
+    install(FILES ddm-autologin.pam DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d RENAME ddm-autologin)
     configure_file(ddm-sysuser.conf.in ddm-sysuser.conf)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ddm-sysuser.conf" DESTINATION "${SYSTEMD_SYSUSERS_DIR}" RENAME dde.conf)
 endif()

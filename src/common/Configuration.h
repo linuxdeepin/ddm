@@ -73,6 +73,13 @@ namespace DDM {
             Entry(RememberLastUser,    bool,        true,                                       _S("Remember the last successfully logged in user"));
             Entry(RememberLastSession, bool,        true,                                       _S("Remember the session of the last successfully logged in user"));
         );
+
+        Section(Autologin,
+            Entry(User,                QString,     QString(),                                  _S("User to log in automatically (empty disables autologin)"));
+            Entry(Session,             QString,     QString(),                                  _S("Session to load for automatic login (overrides the last used session)"));
+            // TODO: InBackground is not implemented yet.
+            // Entry(InBackground,     bool,        false,                                       _S("Load the automatic login session in the background without activating it"));
+        );
     );
 
     Config(StateConfig, []()->QString{auto tmp = getpwnam("ddm"); return tmp ? QString::fromLocal8Bit(tmp->pw_dir) : QStringLiteral(STATE_DIR);}().append(QStringLiteral("/state.conf")), QString(), QString(),

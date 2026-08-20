@@ -30,6 +30,10 @@ namespace DDM {
         /** Username. Must be set before authenticate() */
         QString user{};
 
+        /** PAM service to use for authentication (defaults to "ddm"). Use
+         *  "ddm-autologin" to authenticate without a password. */
+        QString pamService{ QStringLiteral("ddm") };
+
         /** Display sever type of the session. Must be set before startUserProcess() */
         Display::DisplayServerType type{};
 

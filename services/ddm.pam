@@ -1,5 +1,8 @@
 #%PAM-1.0
 
+# Allow members of the nopasswdlogin group to log in without a password
+auth        sufficient  pam_succeed_if.so user ingroup nopasswdlogin
+
 auth        include     system-login
 -auth       optional    pam_gnome_keyring.so
 -auth       optional    pam_kwallet5.so

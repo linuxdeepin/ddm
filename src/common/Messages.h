@@ -51,6 +51,7 @@ namespace DDM {
         UserActivateMessage,
         SwitchToGreeter,
         UserLoggedIn,
+        ShowGreeter,
     };
 
     enum Capability {

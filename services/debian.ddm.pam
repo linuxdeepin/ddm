@@ -4,7 +4,9 @@
 auth    requisite       pam_nologin.so
 auth    required        pam_succeed_if.so user != root quiet_success
 
-# auth    sufficient      pam_succeed_if.so user ingroup nopasswdlogin
+# Allow members of the nopasswdlogin group to log in without a password
+auth    sufficient      pam_succeed_if.so user ingroup nopasswdlogin
+
 @include common-auth
 # gnome_keyring breaks QProcess
 -auth   optional        pam_gnome_keyring.so

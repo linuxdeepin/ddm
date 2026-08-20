@@ -233,10 +233,25 @@ namespace DDM {
     void Display::connected(QLocalSocket *socket) {
         // send logged in users (for possible crash recovery)
         SocketWriter writer(socket);
+        bool hasActiveUser = false;
         for (Auth *auth : std::as_const(auths)) {
-            if (auth->sessionOpened)
+            if (auth->sessionOpened) {
+                hasActiveUser = true;
                 writer << quint32(DaemonMessages::UserLoggedIn) << auth->user << auth->xdgSessionId;
+            }
         }
+
+        // Autologin is only tried on the first connection after boot.
+        if (!m_connectedOnce) {
+            m_connectedOnce = true;
+            if (!hasActiveUser && !mainConfig.Autologin.User.get().isEmpty()) {
+                if (startAutologin())
+                    return;
+            }
+        }
+
+        SocketWriter showGreeter(socket);
+        showGreeter << quint32(DaemonMessages::ShowGreeter);
     }
 
     void Display::login(QLocalSocket *socket,
@@ -270,34 +285,6 @@ namespace DDM {
         if (insertedAuth)
             auths << auth;
 
-        // sanity check
-        if (!session.isValid()) {
-            qCritical() << "Invalid session" << session.fileName();
-            if (insertedAuth) {
-                auths.removeAll(auth);
-                delete auth;
-            }
-            return;
-        }
-        if (session.xdgSessionType().isEmpty()) {
-            qCritical() << "Failed to find XDG session type for session" << session.fileName();
-            if (insertedAuth) {
-                auths.removeAll(auth);
-                delete auth;
-            }
-            return;
-        }
-        if (session.exec().isEmpty()) {
-            qCritical() << "Failed to find command for session" << session.fileName();
-            if (insertedAuth) {
-                auths.removeAll(auth);
-                delete auth;
-            }
-            return;
-        }
-
-        const QString sessionId = QStringLiteral("Session%1").arg(daemonApp->newSessionId());
-
         // Run password check
         if (!auth->authenticate(password.toLocal8Bit())) {
             if (insertedAuth) {
@@ -320,6 +307,32 @@ namespace DDM {
             stateConfig.Last.Session.setDefault();
         stateConfig.save();
 
+        if (!startUserSession(auth, session))
+            Q_EMIT loginFailed(socket, user);
+    }
+
+    bool Display::startUserSession(Auth *auth, const Session &session) {
+        // sanity check
+        if (!session.isValid()) {
+            qCritical() << "Invalid session" << session.fileName();
+            auths.removeAll(auth);
+            delete auth;
+            return false;
+        }
+        if (session.xdgSessionType().isEmpty()) {
+            qCritical() << "Failed to find XDG session type for session" << session.fileName();
+            auths.removeAll(auth);
+            delete auth;
+            return false;
+        }
+        if (session.exec().isEmpty()) {
+            qCritical() << "Failed to find command for session" << session.fileName();
+            auths.removeAll(auth);
+            delete auth;
+            return false;
+        }
+
+        const QString sessionId = QStringLiteral("Session%1").arg(daemonApp->newSessionId());
         auth->sessionId = sessionId;
 
         // Special preparation for each display server type
@@ -331,12 +344,12 @@ namespace DDM {
         if (session.isSingleMode()) {
             auth->type = Treeland;
             const int ownerPid = daemonApp->treelandConnector()->mainPid();
-            auth->tty = daemonApp->seatdControl()->createGroupVt(ownerPid, user, sessionId);
+            auth->tty = daemonApp->seatdControl()->createGroupVt(ownerPid, auth->user, sessionId);
             if (auth->tty <= 0) {
                 qCritical() << "Failed to allocate grouped VT for Treeland user session";
                 auths.removeAll(auth);
                 delete auth;
-                return;
+                return false;
             }
         } else if (session.xdgSessionType() == QLatin1String("x11")) {
             auth->type = X11;
@@ -350,10 +363,10 @@ namespace DDM {
             qCritical() << "Failed to allocate VT for user session";
             auths.removeAll(auth);
             delete auth;
-            return;
+            return false;
         }
 
-        qInfo() << "Authentication succeeded for user" << user << ", opening session"
+        qInfo() << "Authentication succeeded for user" << auth->user << ", opening session"
                 << session.fileName() << ", command:" << session.exec() << ", VT:" << auth->tty;
 
         // Prepare session environment
@@ -391,7 +404,7 @@ namespace DDM {
                 m_x11Server = nullptr;
                 auths.removeAll(auth);
                 delete auth;
-                return;
+                return false;
             }
             m_x11Server->setupDisplay();
             auth->display = m_x11Server->display;
@@ -408,12 +421,12 @@ namespace DDM {
         int xdgSessionId = auth->openSession(session.exec(), env, cookie);
 
         if (xdgSessionId <= 0) {
-            qCritical() << "Failed to open logind session for user" << user;
+            qCritical() << "Failed to open logind session for user" << auth->user;
             if (auth->type == Treeland)
                 daemonApp->seatdControl()->destroyGroupVt(auth->tty);
             auths.removeAll(auth);
             delete auth;
-            return;
+            return false;
         }
 
         connect(auth, &Auth::sessionFinished, this, [this, auth]() {
@@ -424,12 +437,74 @@ namespace DDM {
                 daemonApp->seatdControl()->destroyGroupVt(auth->tty);
             delete auth;
         });
-        daemonApp->displayManager()->AddSession(sessionId, name, user, auth->tty);
+        daemonApp->displayManager()->AddSession(sessionId, name, auth->user, auth->tty);
         daemonApp->displayManager()->setLastSession(sessionId);
 
         if (auth->type == Treeland)
-            activateSession(user, xdgSessionId);
-        qInfo() << "Successfully logged in user" << user;
+            activateSession(auth->user, xdgSessionId);
+        qInfo() << "Successfully logged in user" << auth->user;
+        return true;
+    }
+
+    bool Display::startAutologin() {
+        const QString user = mainConfig.Autologin.User.get();
+        if (user.isEmpty())
+            return false;
+
+        if (user == QLatin1String("dde")) {
+            qWarning() << "Autologin user must not be the greeter user";
+            return false;
+        }
+
+        qInfo() << "Starting automatic login for user" << user;
+
+        // Determine session: autologin-session, or last used session
+        QString sessionName = mainConfig.Autologin.Session.get();
+        if (sessionName.isEmpty())
+            sessionName = stateConfig.Last.Session.get();
+        if (sessionName.isEmpty()) {
+            qWarning() << "No session configured for autologin, keeping greeter";
+            return false;
+        }
+
+        Session session(Session::WaylandSession, sessionName);
+        if (!session.isValid())
+            session = Session(Session::X11Session, sessionName);
+        if (!session.isValid()) {
+            qCritical() << "Failed to load autologin session" << sessionName;
+            return false;
+        }
+
+        // Create Auth with the dedicated autologin PAM service
+        Auth *auth = new Auth(this, user);
+        auth->pamService = QStringLiteral("ddm-autologin");
+        auths << auth;
+
+        if (!auth->authenticate(QByteArray())) {
+            qWarning() << "Autologin authentication failed for user" << user;
+            auths.removeAll(auth);
+            delete auth;
+            return false;
+        }
+
+        // save last user and last session
+        DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
+        if (mainConfig.Users.RememberLastUser.get())
+            stateConfig.Last.User.set(user);
+        else
+            stateConfig.Last.User.setDefault();
+        if (mainConfig.Users.RememberLastSession.get())
+            stateConfig.Last.Session.set(session.fileName());
+        else
+            stateConfig.Last.Session.setDefault();
+        stateConfig.save();
+
+        if (!startUserSession(auth, session)) {
+            qWarning() << "Failed to start automatic login session for user" << user;
+            return false;
+        }
+
+        return true;
     }
 
     void Display::logout([[maybe_unused]] QLocalSocket *socket, int id) {
