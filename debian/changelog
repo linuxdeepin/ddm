@@ -1,3 +1,9 @@
+ddm (0.3.8) unstable; urgency=medium
+
+  * feat: support automatic login for user sessions
+
+ -- guolin <guolin@uniontech.com>  Wed, 26 Aug 2026 13:07:15 +0800
+
 ddm (0.3.7) unstable; urgency=medium
 
   * fix(auth): release daemon descriptors in session child
