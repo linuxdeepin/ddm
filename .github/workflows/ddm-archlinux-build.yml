@@ -21,7 +21,7 @@ jobs:
 
       - name: Install base dependencies
         run: |
-          pacman -S --noconfirm --noprogressbar base-devel bash gcc-libs glibc libxau pam qt6-base qt6-declarative systemd-libs ttf-font xorg-server xorg-xauth git extra-cmake-modules python-docutils qt6-tools treeland-protocols ninja
+          pacman -S --noconfirm --noprogressbar base-devel bash gcc-libs glibc libxau pam qt6-base qt6-declarative dtk6core systemd-libs ttf-font xorg-server xorg-xauth git extra-cmake-modules python-docutils qt6-tools treeland-protocols ninja
 
       - name: Build and Install treeland-protocols
         run: |

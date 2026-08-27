@@ -83,6 +83,9 @@ find_package(TreelandProtocols 0.5.3  REQUIRED)
 find_package(Qt6 CONFIG REQUIRED Core DBus Network)
 qt_standard_project_setup(REQUIRES 6.6)
 
+# DTK (DConfig)
+find_package(Dtk6 REQUIRED COMPONENTS Core)
+
 # Uninstall target
 if ("${ECM_VERSION}" VERSION_LESS "1.7.0")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
@@ -114,13 +117,20 @@ set(DBUS_CONFIG_DIR             "${CMAKE_INSTALL_FULL_SYSCONFDIR}/dbus-1/system.
 set(STATE_DIR                   "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/ddm"      CACHE PATH      "State directory")
 set(RUNTIME_DIR                 "${RUNTIME_DIR_DEFAULT}"                            CACHE PATH      "Runtime data storage directory")
 
+# DConfig schema locations. DDM configuration and state are managed by DConfig.
+# The application id is a contract shared with dde-daemon and the DSG daemon, and
+# schemas are only resolved by it under the standard DSG data directory, so these
+# are deliberately plain variables instead of cache options: a -D override would
+# install the schema somewhere the runtime never looks.
+set(DDM_DCONFIG_APP_ID          "org.deepin.dde.ddm")
+set(DDM_DCONFIG_DIR             "${CMAKE_INSTALL_FULL_DATADIR}/dsg/configs/${DDM_DCONFIG_APP_ID}")
+set(DDM_DCONFIG_META_FILE       "${DDM_DCONFIG_DIR}/${DDM_DCONFIG_APP_ID}.json")
+set(DDM_DCONFIG_STATE_FILE      "${DDM_DCONFIG_DIR}/${DDM_DCONFIG_APP_ID}.state.json")
+
 set(SESSION_COMMAND             "${DATA_INSTALL_DIR}/scripts/Xsession"              CACHE PATH      "Script to execute when starting the X11 desktop session")
 set(WAYLAND_SESSION_COMMAND     "${DATA_INSTALL_DIR}/scripts/wayland-session"       CACHE PATH      "Script to execute when starting the Wayland desktop session")
 
-set(CONFIG_FILE                 "${CMAKE_INSTALL_FULL_SYSCONFDIR}/ddm.conf"        CACHE PATH      "Path of the ddm config file")
-set(CONFIG_DIR                  "${CMAKE_INSTALL_FULL_SYSCONFDIR}/ddm.conf.d"      CACHE PATH      "Path of the ddm config directory")
 set(ACCOUNTSSERVICE_DATA_DIR    "/var/lib/AccountsService"                          CACHE PATH      "Path of the accountsservice data directory")
-set(SYSTEM_CONFIG_DIR           "${CMAKE_INSTALL_PREFIX}/lib/ddm/ddm.conf.d"      CACHE PATH      "Path of the system ddm config directory")
 set(LOG_FILE                    "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/log/ddm.log"  CACHE PATH      "Path of the ddm log file")
 set(DBUS_CONFIG_FILENAME        "org.freedesktop.DisplayManager.conf"               CACHE STRING    "Name of the ddm config file")
 set(COMPONENTS_TRANSLATION_DIR  "${DATA_INSTALL_DIR}/translations"                  CACHE PATH      "Components translations directory")

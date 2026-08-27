@@ -25,15 +25,13 @@
 #include <QtCore/QTextStream>
 #include <QtCore/QStringList>
 #include <QtCore/QDir>
-#include <pwd.h>
 
 #include "Constants.h"
 
 #include "ConfigReader.h"
 
 namespace DDM {
-    //     Name        File         Sections and/or Entries (but anything else too, it's a class) - Entries in a Config are assumed to be in the General section
-    Config(MainConfig, QStringLiteral(CONFIG_FILE), QStringLiteral(CONFIG_DIR), QStringLiteral(SYSTEM_CONFIG_DIR),
+    Config(MainConfig, _S(DDM_DCONFIG_APP_ID), _S(DDM_DCONFIG_APP_ID), QString(),
 
         //  Name                   Type         Default value                                   Description
         Entry(HaltCommand,         QString,     _S(HALT_COMMAND),                               _S("Halt command"));
@@ -82,7 +80,7 @@ namespace DDM {
         );
     );
 
-    Config(StateConfig, []()->QString{auto tmp = getpwnam("ddm"); return tmp ? QString::fromLocal8Bit(tmp->pw_dir) : QStringLiteral(STATE_DIR);}().append(QStringLiteral("/state.conf")), QString(), QString(),
+    Config(StateConfig, _S(DDM_DCONFIG_APP_ID ".state"), _S(DDM_DCONFIG_APP_ID), QString(),
         Section(Last,
             Entry(Session,         QString,     QString(),                                      _S("Name of the session for the last logged-in user.\n"
                                                                                                    "This session will be preselected when the login screen appears."));

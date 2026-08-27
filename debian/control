@@ -4,6 +4,7 @@ Maintainer: justforlxz <zhangdingyuan@deepin.org>
 Build-Depends: debhelper-compat (= 13),
                cmake (>= 3.4~),
                extra-cmake-modules (>= 1.4.0~),
+               libdtk6core-dev,
                libpam0g-dev,
                libsystemd-dev [linux-any],
                libwayland-dev,
@@ -39,6 +40,7 @@ Package: libddm-dev
 Architecture: any
 Depends: ${misc:Depends},
          libddm( =${binary:Version}),
+         libdtk6core-dev,
          qt6-base-dev
 Description: DDM devel library
   provide PAM headers

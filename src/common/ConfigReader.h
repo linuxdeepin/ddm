@@ -24,9 +24,12 @@
 #include <QtCore/QString>
 #include <QtCore/QTextStream>
 #include <QtCore/QStringList>
+#include <QtCore/QVariant>
 #include <QtCore/QDebug>
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
+
+#include <type_traits>
 
 #define IMPLICIT_SECTION "General"
 #define UNUSED_VARIABLE_COMMENT "# Unused variable"
@@ -75,7 +78,8 @@ namespace DDM {
     public:
         virtual const QString &name() const = 0;
         virtual QString value() const = 0;
-        virtual void setValue(const QString &str) = 0;
+        virtual QVariant variant() const = 0;
+        virtual void setValue(const QVariant &value) = 0;
         virtual QString toConfigShort() const = 0;
         virtual QString toConfigFull() const = 0;
         virtual bool matchesDefault() const = 0;
@@ -156,11 +160,39 @@ namespace DDM {
             return str;
         }
 
-        // specialised for QString
-        void setValue(const QString &str) {
+        QVariant variant() const {
+            return QVariant::fromValue(m_value);
+        }
+
+        void setValue(const QVariant &value) {
             m_isDefault = false;
-            QTextStream in(qPrintable(str));
-            in >> m_value;
+
+            // Assign the value according to its actual type. Lists must be taken
+            // as-is: casting them through the comma-separated textual form would
+            // split any element that itself contains a comma.
+            if constexpr (std::is_same_v<T, QString>) {
+                m_value = value.toString().trimmed();
+            } else if constexpr (std::is_same_v<T, QStringList>) {
+                if (value.metaType() == QMetaType::fromType<QStringList>()) {
+                    m_value = value.toStringList();
+                } else if (value.metaType() == QMetaType::fromType<QVariantList>()) {
+                    QStringList list;
+                    const QVariantList items = value.toList();
+                    list.reserve(items.size());
+                    for (const QVariant &item : items)
+                        list.append(item.toString());
+                    m_value = list;
+                } else {
+                    m_value = QStringList{ value.toString() };
+                }
+            } else if (value.metaType() == QMetaType::fromType<T>()) {
+                m_value = value.value<T>();
+            } else {
+                // Fall back to the legacy textual representation (e.g. bool).
+                const QByteArray text = value.toString().toLocal8Bit();
+                QTextStream in(text);
+                in >> m_value;
+            }
         }
 
         QString toConfigShort() const {
