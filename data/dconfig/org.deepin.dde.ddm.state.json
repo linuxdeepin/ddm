@@ -1,0 +1,28 @@
+{
+    "magic": "dsg.config.meta",
+    "version": "1.0",
+    "contents": {
+        "lastUser": {
+            "value": "",
+            "serial": 0,
+            "flags": [],
+            "name": "Last User",
+            "name[zh_CN]": "上次用户",
+            "description": "Name of the last logged-in user. This user will be preselected when the login screen appears.",
+            "description[zh_CN]": "上次登录的用户名，登录界面将预选该用户。",
+            "permissions": "readwrite",
+            "visibility": "private"
+        },
+        "lastSession": {
+            "value": "",
+            "serial": 0,
+            "flags": [],
+            "name": "Last Session",
+            "name[zh_CN]": "上次会话",
+            "description": "Name of the session for the last logged-in user. This session will be preselected when the login screen appears.",
+            "description[zh_CN]": "上次登录用户的会话名称，登录界面将预选该会话。",
+            "permissions": "readwrite",
+            "visibility": "private"
+        }
+    }
+}

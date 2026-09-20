@@ -9,6 +9,21 @@ install(FILES
     DESTINATION "${DBUS_CONFIG_DIR}"
 )
 
+# DConfig schemas (org.deepin.dde.ddm)
+set(DDM_DCONFIG_DIR "${CMAKE_INSTALL_FULL_DATADIR}/dsg/configs/org.deepin.dde.ddm")
+
+configure_file(
+    "dconfig/org.deepin.dde.ddm.json.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/dconfig/org.deepin.dde.ddm.json"
+    @ONLY
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/dconfig/org.deepin.dde.ddm.json"
+    "dconfig/org.deepin.dde.ddm.state.json"
+    DESTINATION "${DDM_DCONFIG_DIR}"
+)
+
 install(FILES
     "scripts/Xsession"
     "scripts/Xsetup"

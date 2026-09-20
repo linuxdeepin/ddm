@@ -136,6 +136,12 @@ int main(int argc, char **argv) {
     // create application
     DDM::DaemonApp app(argc, argv);
 
+    // DConfig is only usable once a QCoreApplication exists, so the
+    // configuration could not be loaded during static construction; (re)load
+    // it here before the daemon starts using it.
+    DDM::mainConfig.load();
+    DDM::stateConfig.load();
+
     // run application
     return app.exec();
 }

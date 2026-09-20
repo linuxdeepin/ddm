@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25.0)
 
 project(DDM
-    VERSION 0.3.8
+    VERSION 0.3.9
     LANGUAGES CXX C)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -83,6 +83,9 @@ find_package(TreelandProtocols 0.5.3  REQUIRED)
 find_package(Qt6 CONFIG REQUIRED Core DBus Network)
 qt_standard_project_setup(REQUIRES 6.6)
 
+# DTK (DConfig)
+find_package(Dtk6 REQUIRED COMPONENTS Core)
+
 # Uninstall target
 if ("${ECM_VERSION}" VERSION_LESS "1.7.0")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
@@ -117,10 +120,7 @@ set(RUNTIME_DIR                 "${RUNTIME_DIR_DEFAULT}"                        
 set(SESSION_COMMAND             "${DATA_INSTALL_DIR}/scripts/Xsession"              CACHE PATH      "Script to execute when starting the X11 desktop session")
 set(WAYLAND_SESSION_COMMAND     "${DATA_INSTALL_DIR}/scripts/wayland-session"       CACHE PATH      "Script to execute when starting the Wayland desktop session")
 
-set(CONFIG_FILE                 "${CMAKE_INSTALL_FULL_SYSCONFDIR}/ddm.conf"        CACHE PATH      "Path of the ddm config file")
-set(CONFIG_DIR                  "${CMAKE_INSTALL_FULL_SYSCONFDIR}/ddm.conf.d"      CACHE PATH      "Path of the ddm config directory")
 set(ACCOUNTSSERVICE_DATA_DIR    "/var/lib/AccountsService"                          CACHE PATH      "Path of the accountsservice data directory")
-set(SYSTEM_CONFIG_DIR           "${CMAKE_INSTALL_PREFIX}/lib/ddm/ddm.conf.d"      CACHE PATH      "Path of the system ddm config directory")
 set(LOG_FILE                    "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/log/ddm.log"  CACHE PATH      "Path of the ddm log file")
 set(DBUS_CONFIG_FILENAME        "org.freedesktop.DisplayManager.conf"               CACHE STRING    "Name of the ddm config file")
 set(COMPONENTS_TRANSLATION_DIR  "${DATA_INSTALL_DIR}/translations"                  CACHE PATH      "Components translations directory")

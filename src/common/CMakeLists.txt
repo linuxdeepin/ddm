@@ -1,7 +1,8 @@
 configure_file("Constants.h.in" "Constants.h" IMMEDIATE @ONLY)
+
 set(PUBLIC_HEADERS
-    ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.h
     ${CMAKE_SOURCE_DIR}/src/common/Configuration.h
+    ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.h
     ${CMAKE_SOURCE_DIR}/src/common/MessageHandler.h
     ${CMAKE_SOURCE_DIR}/src/common/Messages.h
     ${CMAKE_SOURCE_DIR}/src/common/Session.h
@@ -13,8 +14,8 @@ set(PUBLIC_HEADERS
 )
 
 set(SRCS
-    ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.cpp
     ${CMAKE_SOURCE_DIR}/src/common/Configuration.cpp
+    ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.cpp
     ${CMAKE_SOURCE_DIR}/src/common/Session.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.cpp
@@ -36,6 +37,8 @@ target_link_libraries(common
         Qt6::DBus
         Qt6::Network
         PkgConfig::LibXau
+    PUBLIC
+        Dtk6::Core
 )
 
 target_include_directories(common INTERFACE
