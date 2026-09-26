@@ -20,6 +20,7 @@ include(FeatureSummary)
 
 # Options
 option(BUILD_MAN_PAGES "Build man pages" OFF)
+option(BUILD_TESTING "Build unit tests" OFF)
 option(WERROR "Build with -Werror" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -162,6 +163,11 @@ endif()
 add_subdirectory(data)
 add_subdirectory(services)
 add_subdirectory(src)
+
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(test)
+endif()
 
 # Display feature summary
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
