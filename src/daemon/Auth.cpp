@@ -7,6 +7,7 @@
 
 #include "DaemonApp.h"
 #include "DdeSeatdControl.h"
+#include "ForkExitGuard.h"
 #include "Login1Manager.h"
 #include "Login1Session.h"
 #include "SignalHandler.h"
@@ -15,7 +16,6 @@
 
 #include <pwd.h>
 #include <security/pam_appl.h>
-#include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <climits>
@@ -282,6 +282,26 @@ namespace DDM {
             return -1;
         }
 
+        // Install the forked-child exit bypass here, in the daemon, while
+        // libc locks are still consistent and atexit() is safe to call.
+        //
+        // Exit handlers are inherited across fork(): without the bypass, a
+        // forked child calling exit() would run the daemon's cleanup
+        // handlers (e.g. libQt6DBus joining its dispatcher thread), which
+        // deadlock because those threads do not exist after fork(). The
+        // bypass is registered last, so it runs first (LIFO) in every
+        // descendant -- grandchildren forked by PAM modules (e.g.
+        // pam_gnome_keyring) and QProcess children included -- and _exit(0)s
+        // before any inherited handler is reached. The daemon itself is
+        // excluded via the owner PID check and keeps its regular cleanup.
+        //
+        // This must never be done from a pthread_atfork child handler:
+        // atexit() is not async-signal-safe and may block forever on libc
+        // internal locks inherited in a locked state from another thread of
+        // the forking process.
+        if (!ForkExitGuard::install())
+            qWarning() << "[Auth] Failed to install the forked-child exit bypass";
+
         sessionLeaderPid = fork();
         switch (sessionLeaderPid) {
         case -1: {
@@ -320,24 +340,20 @@ namespace DDM {
                 env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
             }
 
-            // PAM modules (e.g. pam_gnome_keyring) may fork() internally and
-            // call exit() instead of _exit() in the fork child, which triggers
-            // Qt's atexit cleanup (including libQt6DBus joining its dispatcher
-            // thread). After fork(), that thread doesn't exist, so the join
-            // blocks forever on a futex/semaphore.
-            //
-            // Register a pthread_atfork child handler here so that any
-            // grandchild processes spawned by PAM will have an atexit handler
-            // that runs _exit() first (LIFO), bypassing Qt's broken cleanup.
-            pthread_atfork(nullptr, nullptr, []() {
-                atexit([]() { _exit(0); });
-            });
+            // Neither this process nor anything forked from it may run the
+            // exit handlers inherited from the daemon: they were registered
+            // before fork() and may wait on threads that no longer exist
+            // (e.g. libQt6DBus joining its dispatcher thread blocks forever
+            // after fork()). The session leader therefore terminates with
+            // _exit() directly, and descendants forked by PAM modules which
+            // call exit() (e.g. pam_gnome_keyring) are terminated by the
+            // ForkExitGuard handler the daemon installed before fork().
 
             // Open session
             auto sessionEnv = openSessionInternal(env);
             if (!sessionEnv.has_value()) {
                 qCritical() << "[SessionLeader] Failed to open session. Exit now.";
-                exit(1);
+                _exit(1);
             }
             env = *sessionEnv;
 
@@ -345,11 +361,11 @@ namespace DDM {
             xdgSessionId = env.value(QStringLiteral("XDG_SESSION_ID")).toInt();
             if (xdgSessionId <= 0) {
                 qCritical() << "[SessionLeader] Invalid XDG_SESSION_ID from pam_open_session()";
-                exit(1);
+                _exit(1);
             }
             if (write(pipefd[1], &xdgSessionId, sizeof(int)) != sizeof(int)) {
                 qCritical() << "[SessionLeader] Failed to write XDG_SESSION_ID to parent process!";
-                exit(1);
+                _exit(1);
             }
 
             // RUN!!!
@@ -358,14 +374,14 @@ namespace DDM {
             session.start(command, type, cookie);
             if (!session.waitForStarted()) {
                 qCritical() << "[SessionLeader] Failed to start session process. Exit now.";
-                exit(1);
+                _exit(1);
             }
 
             // Send session PID to parent
             sessionPid = session.processId();
             if (write(pipefd[1], &sessionPid, sizeof(qint64)) != sizeof(qint64)) {
                 qCritical() << "[SessionLeader] Failed to write session PID to parent process!";
-                exit(1);
+                _exit(1);
             }
             qInfo() << "[SessionLeader] Session started with PID" << sessionPid;
 
@@ -374,11 +390,11 @@ namespace DDM {
             // Handle session end
             if (session.exitStatus() == QProcess::CrashExit) {
                 qCritical() << "[SessionLeader] Session process crashed. Exit now.";
-                exit(1);
+                _exit(1);
             }
             qInfo() << "[SessionLeader] Session process finished with exit code"
                     << session.exitCode() << ". Exiting.";
-            exit(session.exitCode());
+            _exit(session.exitCode());
         }
         default: {
             // Parent process
