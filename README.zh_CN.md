@@ -12,7 +12,7 @@
 ```shell
 $ cmake -Bbuild
 $ cmake --build build
-$ cmake --install build # only do this if you know what you are doing
+$ cmake --install build # 只有在你知道自己在做什么的情况下才这样做。
 ```
 
 提供了一个 `debian` 文件夹，用于在 *deepin* Linux 桌面发行版下构建该软件包。 要构建该包，请使用以下命令：
