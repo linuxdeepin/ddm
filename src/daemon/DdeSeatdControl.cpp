@@ -388,7 +388,14 @@ void DdeSeatdControl::handleEventSocket() {
     m_eventBuffer.append(chunk);
     while (m_eventBuffer.size() >= static_cast<int>(sizeof(ControlHeader))) {
         ControlHeader header {};
+        // The loop condition above guarantees the buffer holds at least sizeof(ControlHeader)
+        // bytes, so this copy is in bounds. GCC 15/16 nevertheless reports -Warray-bounds here:
+        // it cannot relate QByteArray::size() to the pointer returned by constData(), which may
+        // be the 1-byte static QByteArray::_empty for an empty byte array.
+        QT_WARNING_PUSH
+        QT_WARNING_DISABLE_GCC("-Warray-bounds")
         memcpy(&header, m_eventBuffer.constData(), sizeof(header));
+        QT_WARNING_POP
         if (header.size > maxControlPayloadSize) {
             qWarning("Invalid dde-seatd control message size %u", header.size);
             disconnectEventSocket();
