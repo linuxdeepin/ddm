@@ -4,8 +4,6 @@ name: Build ddm on Arch Linux
 # treeland-protocols-git is installed from source
 
 on:
-  push:
-
   pull_request:
 
 jobs:
