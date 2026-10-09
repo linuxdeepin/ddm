@@ -158,20 +158,20 @@ namespace DDM {
         stop();
     }
 
-    void Display::activateSession(const QString &user, int xdgSessionId) {
+    void Display::activateSession(const QString &user, const QString &xdgSessionId) {
         qWarning() << "Display activateSession requested for user" << user
                    << "xdgSessionId" << xdgSessionId
                    << "display VT" << terminalId;
-        if (xdgSessionId <= 0 && user != QStringLiteral("dde")) {
+        if (xdgSessionId.isEmpty() && user != QStringLiteral("dde")) {
             qCritical() << "Invalid xdg session id" << xdgSessionId << "for user" << user;
             return;
         }
 
         m_treeland->activateUser(user, xdgSessionId);
 
-        if (xdgSessionId > 0 && Logind::isAvailable()) {
+        if (!xdgSessionId.isEmpty() && Logind::isAvailable()) {
             OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(), Logind::managerPath(), QDBusConnection::systemBus());
-            manager.ActivateSession(QString::number(xdgSessionId));
+            manager.ActivateSession(xdgSessionId);
         }
     }
 
@@ -418,9 +418,9 @@ namespace DDM {
         }
 
         // Open Logind session & Exec the desktop process
-        int xdgSessionId = auth->openSession(session.exec(), env, cookie);
+        const QString xdgSessionId = auth->openSession(session.exec(), env, cookie);
 
-        if (xdgSessionId <= 0) {
+        if (xdgSessionId.isEmpty()) {
             qCritical() << "Failed to open logind session for user" << auth->user;
             if (auth->type == Treeland)
                 daemonApp->seatdControl()->destroyGroupVt(auth->tty);
@@ -441,7 +441,7 @@ namespace DDM {
         daemonApp->displayManager()->setLastSession(sessionId);
 
         if (auth->type == Treeland)
-            activateSession(auth->user, xdgSessionId);
+            activateSession(auth->user, auth->xdgSessionId);
         qInfo() << "Successfully logged in user" << auth->user;
         return true;
     }
@@ -507,7 +507,7 @@ namespace DDM {
         return true;
     }
 
-    void Display::logout([[maybe_unused]] QLocalSocket *socket, int id) {
+    void Display::logout([[maybe_unused]] QLocalSocket *socket, const QString &id) {
         qDebug() << "Logout requested for session id" << id;
         // Do not kill the session leader process before
         // TerminateSession! Logind will only kill the session's
@@ -519,16 +519,16 @@ namespace DDM {
         OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                      Logind::managerPath(),
                                                      QDBusConnection::systemBus());
-        manager.TerminateSession(QString::number(id));
+        manager.TerminateSession(id);
     }
 
-    void Display::lock([[maybe_unused]] QLocalSocket *socket, int id) {
+    void Display::lock([[maybe_unused]] QLocalSocket *socket, const QString &id) {
         qDebug() << "Lock requested for session id" << id;
 
         OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                      Logind::managerPath(),
                                                      QDBusConnection::systemBus());
-        manager.LockSession(QString::number(id));
+        manager.LockSession(id);
     }
 
     void Display::unlock(QLocalSocket *socket, const QString &user, const QString &password) {
@@ -559,11 +559,11 @@ namespace DDM {
 
         // Find the auth that started the session, which contains full informations
         for (auto *auth : std::as_const(auths)) {
-            if (auth->user == user && auth->xdgSessionId > 0) {
+            if (auth->user == user && !auth->xdgSessionId.isEmpty()) {
                 OrgFreedesktopLogin1ManagerInterface manager(Logind::serviceName(),
                                                              Logind::managerPath(),
                                                              QDBusConnection::systemBus());
-                manager.UnlockSession(QString::number(auth->xdgSessionId));
+                manager.UnlockSession(auth->xdgSessionId);
                 if (auth->type == Treeland)
                     activateSession(user, auth->xdgSessionId);
                 else if (!daemonApp->seatdControl()->requestSwitchVt(auth->tty))

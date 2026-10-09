@@ -21,7 +21,7 @@ namespace DDM {
     public Q_SLOTS:
         bool start();
         void stop();
-        void activateUser(const QString &user, int xdgSessionId);
+        void activateUser(const QString &user, const QString &xdgSessionId);
         void onLoginFailed(const QString &user);
 
     private:

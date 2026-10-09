@@ -63,13 +63,17 @@ namespace DDM {
         /**
          * Tell Treeland to activate a certain session.
          *
-         * Called with user = "dde" and xdgSessionId <= 0
-         * will send Treeland into lockscreen.
+         * Called with user = "dde" and an empty xdgSessionId
+         * will send Treeland into lockscreen. Note: treeland internally
+         * represents the dde greeter sentinel with id "0" (see treeland
+         * src/seat/helper.cpp); ddm uses an empty string for the same
+         * sentinel. The asymmetry is safe because treeland resolves the
+         * dde session by username, not by this id.
          *
          * @param user Username
          * @param xdgSessionId Logind session ID
          */
-        void activateSession(const QString &user, int xdgSessionId);
+        void activateSession(const QString &user, const QString &xdgSessionId);
 
         /** Seat name */
         QString name{};
@@ -104,8 +108,8 @@ namespace DDM {
                    const QString &user,
                    const QString &password,
                    const Session &session);
-        void logout(QLocalSocket *socket, int id);
-        void lock(QLocalSocket *socket, int id);
+        void logout(QLocalSocket *socket, const QString &id);
+        void lock(QLocalSocket *socket, const QString &id);
         void unlock(QLocalSocket *socket, const QString &user, const QString &password);
 
     signals:
