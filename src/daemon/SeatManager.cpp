@@ -212,8 +212,17 @@ namespace DDM {
     void SeatManager::switchToGreeter(const QString &name) {
         for (auto display : std::as_const(displays)) {
             if (display->name == name) {
-                // switch to greeter
-                display->activateSession("dde", 0);
+                // Switch to greeter. The "dde" user is the greeter sentinel
+                // with no real logind session; here we pass an empty session id.
+                //
+                // NOTE: treeland's startup sentinel uses "0" as the dde session
+                // id (see treeland src/seat/helper.cpp), while ddm uses an empty
+                // string. This asymmetry is harmless because treeland resolves
+                // the dde session by username (sessionForUser("dde")), so the
+                // empty id never overwrites the already-created "0" sentinel.
+                // Keep the empty-string sentinel here to avoid coupling ddm's
+                // wire format to treeland's internal sentinel value.
+                display->activateSession("dde", QString());
                 return;
             }
         }

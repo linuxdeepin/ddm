@@ -46,8 +46,8 @@ namespace DDM {
         /** Virtual terminal number (e.g. 7 for tty7) */
         int tty{ 0 };
 
-        /** Logind session ID (the XDG_SESSION_ID env var). Positive values are valid */
-        int xdgSessionId{ 0 };
+        /** Logind session ID (the XDG_SESSION_ID env var). Empty means no session */
+        QString xdgSessionId{};
 
         /** PID of the session leader. Positive values are valid */
         pid_t sessionLeaderPid{ 0 };
@@ -71,11 +71,11 @@ namespace DDM {
          * @param command Command to execute as user process
          * @param env Environment variables to set for the session
          * @param cookie XAuth cookie, must be provided if type=X11
-         * @return A valid XDG_SESSION_ID on success, zero or negative on failure
+         * @return A valid XDG_SESSION_ID on success, empty string on failure
          */
-        int openSession(const QString &command,
-                        QProcessEnvironment env,
-                        const QByteArray &cookie = QByteArray());
+        QString openSession(const QString &command,
+                            QProcessEnvironment env,
+                            const QByteArray &cookie = QByteArray());
 
         /**
          * Close PAM session

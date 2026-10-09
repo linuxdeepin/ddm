@@ -64,6 +64,59 @@ namespace DDM {
         }
     }
 
+    // Complete-transfer helpers for the parent/child session pipe.
+    // Plain read()/write() may return fewer bytes than requested (short
+    // transfer) or fail with EINTR when interrupted by a signal. Treating
+    // those as fatal would leak an already-opened logind session, so retry
+    // until the whole frame is transferred or a real error/EOF occurs.
+    static bool writeAll(int fd, const void *buffer, size_t size)
+    {
+        const auto *data = static_cast<const char *>(buffer);
+        size_t written = 0;
+        while (written < size) {
+            const ssize_t ret = write(fd, data + written, size - written);
+            if (ret == -1) {
+                if (errno == EINTR)
+                    continue;
+                return false;
+            }
+            if (ret == 0) {
+                // write() returning 0 means nothing was transferred. On a
+                // blocking pipe this should not happen for a non-zero size,
+                // but treat it as a hard error to avoid an infinite loop.
+                errno = EIO;
+                return false;
+            }
+            written += static_cast<size_t>(ret);
+        }
+        return true;
+    }
+
+    static bool readFull(int fd, void *buffer, size_t size)
+    {
+        auto *data = static_cast<char *>(buffer);
+        size_t received = 0;
+        while (received < size) {
+            const ssize_t ret = read(fd, data + received, size - received);
+            if (ret == -1) {
+                if (errno == EINTR)
+                    continue;
+                return false;
+            }
+            if (ret == 0) { // EOF: the child closed the pipe early
+                errno = EPIPE;
+                return false;
+            }
+            received += static_cast<size_t>(ret);
+        }
+        return true;
+    }
+
+    // XDG_SESSION_ID is a short opaque string (numeric or e.g. "c1"). The
+    // length prefix is validated against this bound to avoid allocating a
+    // huge buffer from a corrupted/oversized pipe frame.
+    constexpr quint32 kMaxSessionIdLen = 256;
+
     ///////////////////////////
     // utmp helper functions //
     ///////////////////////////
@@ -262,15 +315,15 @@ namespace DDM {
         return true;
     }
 
-    int Auth::openSession(const QString &command,
-                          QProcessEnvironment env,
-                          const QByteArray &cookie) {
+    QString Auth::openSession(const QString &command,
+                              QProcessEnvironment env,
+                              const QByteArray &cookie) {
         Q_ASSERT(authenticated);
 
         int pipefd[2];
         if (pipe(pipefd) == -1) {
             qWarning() << "[Auth] pipe failed:" << strerror(errno);
-            return -1;
+            return {};
         }
 
         // Here is most safe place to request the VT switch before opening the session.
@@ -278,7 +331,7 @@ namespace DDM {
             qWarning() << "[Auth] Failed to switch to VT" << tty << ":" << strerror(errno);
             close(pipefd[0]);
             close(pipefd[1]);
-            return -1;
+            return {};
         }
 
         sessionLeaderPid = fork();
@@ -288,7 +341,7 @@ namespace DDM {
             qWarning() << "[Auth] fork failed:" << strerror(errno);
             close(pipefd[0]);
             close(pipefd[1]);
-            return -1;
+            return {};
         }
         case 0: {
             // Child (session leader) process
@@ -328,12 +381,15 @@ namespace DDM {
             env = *sessionEnv;
 
             // Retrieve XDG_SESSION_ID
-            xdgSessionId = env.value(QStringLiteral("XDG_SESSION_ID")).toInt();
-            if (xdgSessionId <= 0) {
+            xdgSessionId = env.value(QStringLiteral("XDG_SESSION_ID"));
+            if (xdgSessionId.isEmpty()) {
                 qCritical() << "[SessionLeader] Invalid XDG_SESSION_ID from pam_open_session()";
                 exit(1);
             }
-            if (write(pipefd[1], &xdgSessionId, sizeof(int)) != sizeof(int)) {
+            const QByteArray idBytes = xdgSessionId.toLocal8Bit();
+            const quint32 idLen = static_cast<quint32>(idBytes.size());
+            if (!writeAll(pipefd[1], &idLen, sizeof(idLen))
+                || !writeAll(pipefd[1], idBytes.constData(), idBytes.size())) {
                 qCritical() << "[SessionLeader] Failed to write XDG_SESSION_ID to parent process!";
                 exit(1);
             }
@@ -349,7 +405,7 @@ namespace DDM {
 
             // Send session PID to parent
             sessionPid = session.processId();
-            if (write(pipefd[1], &sessionPid, sizeof(qint64)) != sizeof(qint64)) {
+            if (!writeAll(pipefd[1], &sessionPid, sizeof(qint64))) {
                 qCritical() << "[SessionLeader] Failed to write session PID to parent process!";
                 exit(1);
             }
@@ -370,22 +426,44 @@ namespace DDM {
             // Parent process
             close(pipefd[1]);
 
-            if (read(pipefd[0], &xdgSessionId, sizeof(int)) < 0) {
+            quint32 idLen = 0;
+            if (!readFull(pipefd[0], &idLen, sizeof(idLen))) {
                 qWarning() << "[Auth] Failed to read XDG_SESSION_ID from child process:" << strerror(errno);
                 close(pipefd[0]);
-                return -1;
+                return {};
             }
-            if (read(pipefd[0], &sessionPid, sizeof(qint64)) < 0) {
+            // XDG_SESSION_ID is a short opaque string (numeric or e.g. "c1"),
+            // so guard against a corrupted/oversized length field from the pipe.
+            if (idLen == 0 || idLen > kMaxSessionIdLen) {
+                qWarning() << "[Auth] Invalid XDG_SESSION_ID length:" << idLen;
+                close(pipefd[0]);
+                return {};
+            }
+            QByteArray idBytes(static_cast<int>(idLen), Qt::Uninitialized);
+            if (!readFull(pipefd[0], idBytes.data(), idLen)) {
+                qWarning() << "[Auth] Failed to read XDG_SESSION_ID from child process:" << strerror(errno);
+                close(pipefd[0]);
+                return {};
+            }
+            xdgSessionId = QString::fromLocal8Bit(idBytes);
+
+            if (!readFull(pipefd[0], &sessionPid, sizeof(qint64))) {
                 qWarning() << "[Auth] Failed to read session PID from child process:" << strerror(errno);
                 close(pipefd[0]);
-                return -1;
+                return {};
+            }
+            if (sessionPid <= 0) {
+                qWarning() << "[Auth] Invalid session PID from child process:" << sessionPid;
+                close(pipefd[0]);
+                return {};
             }
             utmpLogin(true);
 
             // Monitor child process ends
-            m_notifier = new QSocketNotifier(pipefd[0], QSocketNotifier::Read);
-            connect(m_notifier, &QSocketNotifier::activated, this, [this, pipefd] {
-                close(pipefd[0]);
+            const int readFd = pipefd[0];
+            m_notifier = new QSocketNotifier(readFd, QSocketNotifier::Read);
+            connect(m_notifier, &QSocketNotifier::activated, this, [this, readFd] {
+                close(readFd);
                 m_notifier->setEnabled(false);
                 m_notifier->deleteLater();
                 Q_EMIT sessionFinished();

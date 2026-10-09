@@ -113,21 +113,29 @@ namespace DDM {
         // input stream
         QDataStream input(socket);
 
-        // Qt's QLocalSocket::readyRead is not designed to be called at every socket.write(),
-        // so we need to use a loop to read all the signals.
+        // QLocalSocket is stream-oriented: a message header may arrive before
+        // the complete variable-length payload (e.g. a QString). Read each
+        // message inside a QDataStream transaction and only act after the
+        // whole payload has been committed; otherwise the stream is rolled
+        // back and we wait for more data, avoiding emitting with incomplete
+        // values and desynchronizing the stream.
         while(socket->bytesAvailable()) {
+            input.startTransaction();
+
             // read message
-            quint32 message;
+            quint32 message = 0;
             input >> message;
 
             switch (GreeterMessages(message)) {
                 case GreeterMessages::Connect: {
-                    // log message
-                    qDebug() << "Message received from greeter: Connect";
-
                     // Connect wayland socket
                     QString socketPath;
                     input >> socketPath;
+                    if (!input.commitTransaction())
+                        return;
+
+                    // log message
+                    qDebug() << "Message received from greeter: Connect";
                     daemonApp->treelandConnector()->connect(socketPath);
 
                     // send capabilities
@@ -141,48 +149,63 @@ namespace DDM {
                 }
                 break;
                 case GreeterMessages::Login: {
-                    // log message
-                    qDebug() << "Message received from greeter: Login";
-
                     // read username, pasword etc.
-                    QString user, password, filename;
+                    QString user, password;
                     Session session;
                     input >> user >> password >> session;
+                    if (!input.commitTransaction())
+                        return;
+
+                    // log message
+                    qDebug() << "Message received from greeter: Login";
 
                     // emit signal
                     emit login(socket, user, password, session);
                 }
                 break;
                 case GreeterMessages::Logout: {
+                    // read session id
+                    QString id;
+                    input >> id;
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: Logout";
-                    // read username
-                    int id;
-                    input >> id;
+
                     // emit signal
                     emit logout(socket, id);
                 }
                 break;
                 case GreeterMessages::Lock : {
+                    QString id;
+                    input >> id;
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: Lock";
-                    int id;
 
-                    input >> id;
                     emit lock(socket, id);
                 }
                 break;
                 case GreeterMessages::Unlock : {
-                    // log message
-                    qDebug() << "Message received from greeter: Unlock";
                     QString user;
                     QString password;
-
                     input >> user >> password;
+                    if (!input.commitTransaction())
+                        return;
+
+                    // log message
+                    qDebug() << "Message received from greeter: Unlock";
+
                     emit unlock(socket, user, password);
                 }
                 break;
                 case GreeterMessages::PowerOff: {
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: PowerOff";
 
@@ -191,6 +214,9 @@ namespace DDM {
                 }
                 break;
                 case GreeterMessages::Reboot: {
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: Reboot";
 
@@ -199,6 +225,9 @@ namespace DDM {
                 }
                 break;
                 case GreeterMessages::Suspend: {
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: Suspend";
 
@@ -207,6 +236,9 @@ namespace DDM {
                 }
                 break;
                 case GreeterMessages::Hibernate: {
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: Hibernate";
 
@@ -215,22 +247,34 @@ namespace DDM {
                 }
                 break;
                 case GreeterMessages::HybridSleep: {
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: HybridSleep";
+
                     // hybrid sleep
                     daemonApp->powerManager()->hybridSleep();
                 }
                 break;
                 case GreeterMessages::BackToNormal: {
+                    if (!input.commitTransaction())
+                        return;
+
                     // log message
                     qDebug() << "Message received from greeter: Back to normal";
-                    // hybrid sleep
+
+                    // back to normal
                     daemonApp->backToNormal();
                 }
                 break;
                 default: {
-                    // log message
+                    // Unknown message type: its payload length is unknown, so
+                    // it cannot be framed safely. Consume the header and stop
+                    // to avoid treating trailing bytes as a new message header.
+                    input.commitTransaction();
                     qWarning() << "Unknown message" << message;
+                    return;
                 }
             }
         }

@@ -75,17 +75,17 @@ void TreelandDisplayServer::stop() {
     m_started = false;
 }
 
-void TreelandDisplayServer::activateUser(const QString &user, int xdgSessionId) {
-    qDebug("Send greeter activation: user=%s xdgSessionId=%d sockets=%lld",
-           qPrintable(user), xdgSessionId, static_cast<long long>(m_greeterSockets.size()));
+void TreelandDisplayServer::activateUser(const QString &user, const QString &xdgSessionId) {
+    qDebug("Send greeter activation: user=%s xdgSessionId=%s sockets=%lld",
+           qPrintable(user), qPrintable(xdgSessionId), static_cast<long long>(m_greeterSockets.size()));
     for (auto greeter : m_greeterSockets) {
         if (user == "dde") {
             qDebug("Sending SwitchToGreeter to socket=%p", greeter);
             SocketWriter(greeter) << quint32(DaemonMessages::SwitchToGreeter);
         }
 
-        qDebug("Sending UserActivateMessage to socket=%p user=%s xdgSessionId=%d",
-               greeter, qPrintable(user), xdgSessionId);
+        qDebug("Sending UserActivateMessage to socket=%p user=%s xdgSessionId=%s",
+               greeter, qPrintable(user), qPrintable(xdgSessionId));
         SocketWriter(greeter) << quint32(DaemonMessages::UserActivateMessage) << user << xdgSessionId;
     }
 }
