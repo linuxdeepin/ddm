@@ -1,3 +1,10 @@
+ddm (0.4.0) unstable; urgency=medium
+
+  * feat: store logind session id as string instead of int
+  * fix: correct D-Bus policy attribute from group to context
+
+ -- rewine <luhongxu@deepin.org>  Sat, 10 Oct 2026 11:29:29 +0800
+
 ddm (0.3.8) unstable; urgency=medium
 
   * feat: support automatic login for user sessions
