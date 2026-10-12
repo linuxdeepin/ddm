@@ -1,3 +1,10 @@
+ddm (0.4.1) unstable; urgency=medium
+
+  * feat(config): migrate DDM configuration to dconfig
+  * docs(man): document DConfig configuration in man pages
+
+ -- guolin <guolin@uniontech.com>  Mon, 12 Oct 2026 16:33:38 +0800
+
 ddm (0.4.0) unstable; urgency=medium
 
   * feat: store logind session id as string instead of int
