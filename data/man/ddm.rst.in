@@ -48,14 +48,19 @@ OPTIONS
 FILES
 =====
 
-**@SYSTEM_CONFIG_DIR@**
-	System configuration directory
+DDM stores its configuration through the DConfig framework of the Deepin
+Desktop Environment, under the application id ``org.deepin.dde.ddm``. The
+corresponding schemas are installed in **@DDM_DCONFIG_DIR@**:
 
-**@CONFIG_DIR@**
-	Local configuration directory
+**@DDM_DCONFIG_META_FILE@**
+	Schema describing the DDM configuration options.
 
-**@CONFIG_FILE@**
-	Local configuration file for compatibility
+**@DDM_DCONFIG_STATE_FILE@**
+	Schema describing the last user and session state.
+
+The effective values are kept by the DConfig daemon and can be read or
+changed with the ``dde-dconfig`` tool. See **ddm.conf**\(5\) for the
+complete list of options.
 
 SEE ALSO
 ========

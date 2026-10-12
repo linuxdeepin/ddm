@@ -14,130 +14,126 @@ ddm display manager configuration
 SYNOPSIS
 ========
 
-Configuration loads all files in the configuration directories followed by the configuration file in the order listed below with the latter having highest precedence. Changes should be made to the local configurations.
+DDM is configured through the DConfig framework of the Deepin Desktop
+Environment. The schema for the display manager is installed in
+**@DDM_DCONFIG_DIR@** and carries the application id ``org.deepin.dde.ddm``:
 
-**@SYSTEM_CONFIG_DIR@**
-	System configuration directory
+**@DDM_DCONFIG_META_FILE@**
+	Schema describing the configuration options listed below.
 
-**@CONFIG_DIR@**
-	Local configuration directory
+The current values are managed by the DConfig daemon and can be read or
+written with the ``dde-dconfig`` tool, for example::
 
-**@CONFIG_FILE@**
-	Local configuration file for compatibility
+	dde-dconfig get -a org.deepin.dde.ddm -r org.deepin.dde.ddm -k autologinUser
+	dde-dconfig set -a org.deepin.dde.ddm -r org.deepin.dde.ddm -k autologinUser -v alice
 
 DESCRIPTION
 ===========
 
-This file configures various parameters of the ddm display manager **ddm**\(1\).
-If this file is not available, default values are used.
+The options below configure various parameters of the ddm display manager
+**ddm**\(1\). If an option is not set, its schema default value is used.
 
 OPTIONS
 =======
 
-[General] section:
-
-`HaltCommand=`
+`haltCommand`
 	Halt command.
 	Default value is "@HALT_COMMAND@".
 
-`RebootCommand=`
+`rebootCommand`
 	Reboot command.
 	Default value is "@REBOOT_COMMAND@".
 
-`Namespaces=`
+`namespaces`
 	Comma-separated list of paths bound to Linux namespaces to enter with
 	setns() before starting the user session.  For example, to enter network
 	namespace `mynet` created with `ip netns add mynet`, the value might be
 	`/run/netns/mynet`.  Default value is empty.  (The value is ignored if
 	the operating system is not Linux.)
 
-[Theme] section:
-
-`CursorTheme=`
+`cursorTheme`
 	Name of the cursor theme to be set before starting
 	the display server.
 
-`CursorSize=`
+`cursorSize`
 	Cursor size to be set before starting the display server.
 
-[X11] section:
-
-`ServerPath=`
+`x11ServerPath`
 	Path of the X server.
 	Default value is "/usr/bin/X".
 
-`ServerArguments=`
+`x11ServerArguments`
 	Arguments to the X server.
 	Default value is "-nolisten tcp".
 
-`SessionDir=`
+`x11SessionDir`
 	Comma-separated list of directories containing session files.
 	Default value is "/usr/local/share/xsessions,/usr/share/xsessions".
 
-`SessionCommand=`
+`x11SessionCommand`
 	Path of script to execute when starting the user session. This script
 	receives the value of the "Exec" setting in the ".desktop" file of the selected
 	session and runs it.
 	Default value is "@SESSION_COMMAND@".
 
-`SessionLogFile=`
+`x11SessionLogFile`
 	Path to the user session log file, relative to the home directory.
-    Default value is ".local/share/ddm/xorg-session.log".
+	Default value is ".local/share/ddm/xorg-session.log".
 
-`DisplayCommand=`
+`x11DisplayCommand`
 	Path of script to execute when starting the display server.
-	The script will be executed as root when General.DisplayServer
-	is "x11", otherwise as ddm user.
+	The script will be executed as root when the display server is "x11",
+	otherwise as the ddm user.
 	Default value is "@DATA_INSTALL_DIR@/scripts/Xsetup".
 
-`DisplayStopCommand=`
+`x11DisplayStopCommand`
 	Path of script to execute when stopping the display server.
-	The script will be executed as root when General.DisplayServer
-	is "x11", otherwise as ddm user.
+	The script will be executed as root when the display server is "x11",
+	otherwise as the ddm user.
 	Default value is "@DATA_INSTALL_DIR@/scripts/Xstop".
 
-[Wayland] section:
-
-`SessionDir=`
+`waylandSessionDir`
 	Comma-separated list of directories containing session files.
 	Default value is "/usr/local/share/wayland-sessions,/usr/share/wayland-sessions".
 
-`SessionCommand=`
+`waylandSessionCommand`
 	Path of script to execute when starting the user session. This script
 	receives the value of the "Exec" setting in the ".desktop" file of the selected
 	session and run it.
 	Default value is "@WAYLAND_SESSION_COMMAND@".
 
-`SessionLogFile=`
+`waylandSessionLogFile`
 	Path to the user session log file, relative to the home directory.
 	Default value is ".local/share/ddm/wayland-session.log".
 
-[Single] section:
-
-`SessionCommand=`
+`singleSessionCommand`
 	Path of script to execute when starting the user session for Treeland.
-    This script receives the value of the "Exec" setting in the ".desktop" file
-    of the selected session and run it.
+	This script receives the value of the "Exec" setting in the ".desktop" file
+	of the selected session and run it.
 	Default value is "@WAYLAND_SESSION_COMMAND@".
 
-[Users] section:
-
-`DefaultPath=`
+`usersDefaultPath`
 	Default path to set after successfully logging in.
 	This is also where DDM looks for programs.
 	Default value is "/usr/local/bin:/usr/bin:/bin".
 
-`RememberLastUser=`
-	If this flag is true, LastUser value will updated
-	on every successful login, if false last user value
-	won't be updated.
+`rememberLastUser`
+	If this flag is true, the last user value will be updated
+	on every successful login, if false it won't be updated.
 	Default value is true.
 
-`RememberLastSession=`
-	If this flag is true, LastSession value will updated
-	on every successful login, if false last session value
-	won't be updated.
+`rememberLastSession`
+	If this flag is true, the last session value will be updated
+	on every successful login, if false it won't be updated.
 	Default value is true.
+
+`autologinUser`
+	User to log in automatically. An empty value disables autologin.
+	Default value is empty.
+
+`autologinSession`
+	Session to load for automatic login, overriding the last used session.
+	Default value is empty.
 
 SEE ALSO
 ========

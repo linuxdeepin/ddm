@@ -14,24 +14,25 @@ ddm configuration
 SYNOPSIS
 ========
 
-~ddm/state.conf
+DConfig application ``org.deepin.dde.ddm``, resource ``org.deepin.dde.ddm.state``
 
 DESCRIPTION
 ===========
 
-This file carries state configuration for the ddm display manager **ddm**\(1\).
+DDM keeps its state through the DConfig framework of the Deepin Desktop
+Environment, under the application id ``org.deepin.dde.ddm`` and the resource
+name ``org.deepin.dde.ddm.state``. The schema is installed as
+**@DDM_DCONFIG_STATE_FILE@**.
 
 OPTIONS
 =======
 
-All options are configured in the [Last] section:
-
-`Session=`
+`lastSession`
 	Name of the session file of the last session selected.
 	This session will be preselected when the login screen shows up.
 	Default value is empty.
 
-`User=`
+`lastUser`
 	Name of last logged-in user. This username will be
 	preselected/shown when the login screen shows up.
 	Default value is empty.
