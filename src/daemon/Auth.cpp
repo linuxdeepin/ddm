@@ -3,119 +3,57 @@
 
 #include "Auth.h"
 
-#include "UserSession.h"
-
+#include "Constants.h"
 #include "DaemonApp.h"
 #include "DdeSeatdControl.h"
-#include "Login1Manager.h"
-#include "Login1Session.h"
-#include "SignalHandler.h"
-#include "TtyUtils.h"
-#include "TreelandConnector.h"
 
 #include <pwd.h>
-#include <security/pam_appl.h>
 #include <signal.h>
 #include <unistd.h>
-#include <climits>
-#include <sys/syscall.h>
+
+#include <fcntl.h>
+#include <sys/socket.h>
 #include <utmp.h>
 #include <utmpx.h>
 
+#include <QDataStream>
+#include <QDebug>
+#include <QProcess>
+
 namespace DDM {
 
-#ifdef SYS_close_range
-    bool tryCloseInheritedWithCloseRange(int preservedFd)
-    {
-        const unsigned int first = STDERR_FILENO + 1;
-        const unsigned int last  = UINT_MAX;
+    namespace {
+        constexpr int kHeaderSize = sizeof(quint32);
+        constexpr quint32 kMaxFrameSize = 1 << 20;
 
-        // No preserved FD in range: just close everything
-        if (preservedFd < 0 || static_cast<unsigned int>(preservedFd) < first)
-            return syscall(SYS_close_range, first, last, 0) == 0;
+        // Helper protocol opcodes. Keep in sync with HelperApp::Msg.
+        constexpr quint32 kOpAuthenticate = 1;
+        constexpr quint32 kOpOpenSession = 2;
+        constexpr quint32 kOpAuthResult = 3;
+        constexpr quint32 kOpSessionResult = 4;
+        constexpr quint32 kOpSessionFinished = 5;
 
-        const unsigned int uPreservedFd = static_cast<unsigned int>(preservedFd);
-
-        // Close [first, preservedFd - 1]
-        if (uPreservedFd > first) {
-            if (syscall(SYS_close_range, first, uPreservedFd - 1, 0) == -1)
-                return false;
-        }
-
-        // Close [preservedFd + 1, last]
-        if (uPreservedFd < last) {
-            if (syscall(SYS_close_range, uPreservedFd + 1, last, 0) == -1)
-                return false;
-        }
-        return true;
-    }
-#endif
-
-    void closeInheritedFileDescriptors(int preservedFd)
-    {
-#ifdef SYS_close_range
-        if (tryCloseInheritedWithCloseRange(preservedFd))
-            return;
-#endif
-        const long maxFd = sysconf(_SC_OPEN_MAX);
-        for (int fd = STDERR_FILENO + 1; fd < maxFd; ++fd) {
-            if (fd != preservedFd)
-                close(fd);
+        bool writeAll(int fd, const void *buf, size_t len)
+        {
+            const char *p = static_cast<const char *>(buf);
+            size_t off = 0;
+            while (off < len) {
+                // MSG_NOSIGNAL: the peer (helper) may already have exited,
+                // so write() must return EPIPE instead of raising SIGPIPE
+                // and killing the daemon.
+                const ssize_t w = ::send(fd, p + off, len - off, MSG_NOSIGNAL);
+                if (w < 0) {
+                    if (errno == EINTR)
+                        continue;
+                    return false;
+                }
+                if (w == 0)
+                    return false;
+                off += static_cast<size_t>(w);
+            }
+            return true;
         }
     }
-
-    // Complete-transfer helpers for the parent/child session pipe.
-    // Plain read()/write() may return fewer bytes than requested (short
-    // transfer) or fail with EINTR when interrupted by a signal. Treating
-    // those as fatal would leak an already-opened logind session, so retry
-    // until the whole frame is transferred or a real error/EOF occurs.
-    static bool writeAll(int fd, const void *buffer, size_t size)
-    {
-        const auto *data = static_cast<const char *>(buffer);
-        size_t written = 0;
-        while (written < size) {
-            const ssize_t ret = write(fd, data + written, size - written);
-            if (ret == -1) {
-                if (errno == EINTR)
-                    continue;
-                return false;
-            }
-            if (ret == 0) {
-                // write() returning 0 means nothing was transferred. On a
-                // blocking pipe this should not happen for a non-zero size,
-                // but treat it as a hard error to avoid an infinite loop.
-                errno = EIO;
-                return false;
-            }
-            written += static_cast<size_t>(ret);
-        }
-        return true;
-    }
-
-    static bool readFull(int fd, void *buffer, size_t size)
-    {
-        auto *data = static_cast<char *>(buffer);
-        size_t received = 0;
-        while (received < size) {
-            const ssize_t ret = read(fd, data + received, size - received);
-            if (ret == -1) {
-                if (errno == EINTR)
-                    continue;
-                return false;
-            }
-            if (ret == 0) { // EOF: the child closed the pipe early
-                errno = EPIPE;
-                return false;
-            }
-            received += static_cast<size_t>(ret);
-        }
-        return true;
-    }
-
-    // XDG_SESSION_ID is a short opaque string (numeric or e.g. "c1"). The
-    // length prefix is validated against this bound to avoid allocating a
-    // huge buffer from a corrupted/oversized pipe frame.
-    constexpr quint32 kMaxSessionIdLen = 256;
 
     ///////////////////////////
     // utmp helper functions //
@@ -187,56 +125,6 @@ namespace DDM {
         updwtmpx("/var/log/wtmp", &entry);
     }
 
-    ///////////////////////////////
-    // PAM conversation function //
-    ///////////////////////////////
-
-    /** PAM conversation function */
-    static int converse(int num_msg,
-                        const struct pam_message **msg,
-                        struct pam_response **resp,
-                        void *secret_ptr) {
-        *resp = (struct pam_response *) calloc(num_msg, sizeof(struct pam_response));
-        if (!*resp)
-            return PAM_BUF_ERR;
-
-        // We only handle secret (password) sending here, which is
-        // prompt by PAM_PROMPT_ECHO_OFF.  Message types (error/info)
-        // are just logged.
-        //
-        // Prompts with PAM_PROMPT_ECHO_ON (most likely asking for
-        // username) are not expected, since we required username is
-        // set before.
-        for (int i = 0; i < num_msg; ++i) {
-            switch (msg[i]->msg_style) {
-            case PAM_PROMPT_ECHO_OFF:
-                resp[i]->resp = strdup(*static_cast<const char **>(secret_ptr));
-                resp[i]->resp_retcode = 0;
-                break;
-            case PAM_ERROR_MSG:
-                qWarning() << "[Converse] Error message:" << msg[i]->msg;
-                resp[i]->resp = nullptr;
-                resp[i]->resp_retcode = 0;
-                break;
-            case PAM_TEXT_INFO:
-                qInfo() << "[Converse] Info message:" << msg[i]->msg;
-                resp[i]->resp = nullptr;
-                resp[i]->resp_retcode = 0;
-                break;
-            default:
-                qCritical("[Converse] Unsupported message style %d: %s", msg[i]->msg_style, msg[i]->msg);
-                for (int j = 0; j < i; j++) {
-                    free(resp[j]->resp);
-                    resp[j]->resp = nullptr;
-                }
-                free(*resp);
-                *resp = nullptr;
-                return PAM_CONV_ERR;
-            }
-        }
-        return PAM_SUCCESS;
-    }
-
     /////////////////////////
     // Auth implementation //
     /////////////////////////
@@ -246,19 +134,15 @@ namespace DDM {
     public:
         AuthPrivate(Auth *parent)
             : QObject(parent)
-            , secretPtr(new const char *)
-            , conv({ converse, static_cast<void *>(secretPtr) }) {
-            *secretPtr = nullptr;
+        {
         }
 
-        ~AuthPrivate() {
-            delete secretPtr;
-        }
-
-        pam_handle_t *handle{ nullptr };
-        const char **secretPtr{};
-        pam_conv conv{};
-        int ret{};
+        // socketpair for talking to the session helper.
+        int socketFd { -1 };
+        // Helper process.
+        QProcess *helper { nullptr };
+        // Buffer for streaming replies from the helper.
+        QByteArray recvBuffer;
     };
 
     Auth::Auth(QObject *parent, QString user)
@@ -268,48 +152,176 @@ namespace DDM {
 
     Auth::~Auth() {
         if (sessionOpened) {
-            delete m_notifier;
             if (sessionPid > 0)
                 kill(sessionPid, SIGTERM);
-            if (sessionLeaderPid > 0)
-                kill(sessionLeaderPid, SIGTERM);
             closeSession();
-            utmpLogout();
         }
-        if (d->handle) {
-            d->ret = pam_end(d->handle, d->ret);
-            if (d->ret != PAM_SUCCESS)
-                qWarning() << "[Auth] PAM handle end with error!";
+        // closeSession() records logout while sessionOpened is still true,
+        // but a session that was never opened (e.g. authenticate-only) needs
+        // no utmp logout. The helper is always terminated as a fallback here.
+        if (d->helper) {
+            d->helper->terminate();
+            if (!d->helper->waitForFinished(3000))
+                d->helper->kill();
+        }
+        if (d->socketFd >= 0) {
+            ::close(d->socketFd);
+            d->socketFd = -1;
         }
         qInfo() << "[Auth] Auth for user" << user << "ended.";
     }
 
-#define CHECK_RET_AUTH                                                           \
-    if (d->ret != PAM_SUCCESS) {                                                 \
-        qWarning() << "[Auth] Authenticate:" << pam_strerror(d->handle, d->ret); \
-        utmpLogin(false);                                                        \
-        return false;                                                            \
+    bool Auth::ensureHelper()
+    {
+        if (d->helper)
+            return true;
+
+        int sv[2];
+        if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == -1) {
+            qWarning() << "[Auth] socketpair failed:" << strerror(errno);
+            return false;
+        }
+
+        d->helper = new QProcess(this);
+
+        // The helper is exec()'d from a fresh, single-threaded process. It
+        // never opens a DBus connection, so gnome-keyring's fork()+exit()
+        // inside pam_open_session() cannot deadlock on Qt atexit handlers.
+        //
+        // All of the daemon's sockets are FD_CLOEXEC, so exec() closes them
+        // automatically (no inherited system-bus fd, no retained DBus names).
+        // The only fd that must survive exec() is our socketpair write end,
+        // whose number is passed through argv after clearing its CLOEXEC flag.
+        d->helper->setChildProcessModifier([sv]() {
+            ::close(sv[0]);
+            ::fcntl(sv[1], F_SETFD, 0); // clear FD_CLOEXEC
+        });
+
+        d->helper->setProgram(QStringLiteral("%1/ddm-helper").arg(QStringLiteral(LIBEXEC_INSTALL_DIR)));
+        d->helper->setArguments({ QString::number(sv[1]) });
+
+        connect(d->helper, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
+            qCritical() << "[Auth] helper error:" << e;
+        });
+        connect(d->helper, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, &Auth::onHelperFinished);
+
+        d->helper->start();
+
+        ::close(sv[1]);
+        d->socketFd = sv[0];
+
+        if (!d->helper->waitForStarted()) {
+            qWarning() << "[Auth] failed to start helper";
+            ::close(d->socketFd);
+            d->socketFd = -1;
+            d->helper->deleteLater();
+            d->helper = nullptr;
+            return false;
+        }
+
+        return true;
     }
+
+    void Auth::onHelperFinished(int exitCode, QProcess::ExitStatus status)
+    {
+        qInfo() << "[Auth] session helper finished, exitCode" << exitCode
+                << "status" << status;
+        // Whether it exited cleanly or crashed, the user session is over.
+        // Do NOT clear sessionOpened here: the destructor (invoked by Display
+        // from this signal) uses that flag to record the utmp/wtmp logout.
+        Q_EMIT sessionFinished();
+    }
+
+    bool Auth::sendRequest(quint32 op, const QByteArray &payload, QByteArray &reply)
+    {
+        if (!ensureHelper())
+            return false;
+
+        QByteArray frame;
+        {
+            QDataStream ds(&frame, QIODevice::WriteOnly);
+            ds << static_cast<quint32>(payload.size() + sizeof(quint32));
+            ds << op;
+            if (!payload.isEmpty())
+                ds.writeRawData(payload.constData(), payload.size());
+        }
+
+        if (!writeAll(d->socketFd, frame.constData(), frame.size())) {
+            qWarning() << "[Auth] failed to write request";
+            return false;
+        }
+
+        // Read one complete framed reply.
+        for (;;) {
+            if (d->recvBuffer.size() >= kHeaderSize) {
+                // The helper writes the frame header with QDataStream
+                // (big-endian); read it the same way.
+                quint32 len = 0;
+                {
+                    QDataStream lenStream(d->recvBuffer);
+                    lenStream >> len;
+                }
+                if (len < sizeof(quint32) || len > kMaxFrameSize) {
+                    qWarning() << "[Auth] invalid reply length" << len;
+                    return false;
+                }
+                if (d->recvBuffer.size() >= static_cast<int>(len + kHeaderSize)) {
+                    // len counts the op (4 bytes) + payload bytes that follow
+                    // the 4-byte length header.
+                    reply = d->recvBuffer.mid(kHeaderSize, len);
+                    d->recvBuffer.remove(0, static_cast<int>(len + kHeaderSize));
+                    return true;
+                }
+            }
+            char chunk[4096];
+            const ssize_t r = ::read(d->socketFd, chunk, sizeof(chunk));
+            if (r <= 0) {
+                if (r < 0 && errno == EINTR)
+                    continue;
+                qWarning() << "[Auth] helper closed channel unexpectedly";
+                return false;
+            }
+            d->recvBuffer.append(chunk, static_cast<int>(r));
+        }
+    }
+
     bool Auth::authenticate(const QByteArray &secret) {
         Q_ASSERT(!user.isEmpty());
 
         qInfo() << "[Auth] Starting...";
-        d->ret = pam_start(pamService.toLocal8Bit().constData(), user.toLocal8Bit().constData(), &d->conv, &d->handle);
-        CHECK_RET_AUTH
 
-        qInfo() << "[Auth] Authenticating user" << user;
+        if (!ensureHelper()) {
+            utmpLogin(false);
+            return false;
+        }
 
-        // Set the secret, authenticate, then clear the secret
-        // immediately to avoid leak
-        *d->secretPtr = secret.constData();
-        d->ret = pam_authenticate(d->handle, 0);
-        *d->secretPtr = nullptr;
+        QByteArray payload;
+        {
+            QDataStream ds(&payload, QIODevice::WriteOnly);
+            ds << user << pamService << secret;
+        }
 
-        CHECK_RET_AUTH
-        qInfo() << "[Auth] Authenticated.";
+        QByteArray reply;
+        if (!sendRequest(kOpAuthenticate, payload, reply)) {
+            utmpLogin(false);
+            return false;
+        }
 
-        d->ret = pam_acct_mgmt(d->handle, 0);
-        CHECK_RET_AUTH
+        // Reply payload: [quint32 op(AuthResult)][bool ok]
+        QDataStream in(reply);
+        quint32 op = 0;
+        in >> op;
+        bool ok = false;
+        if (op == kOpAuthResult) {
+            in >> ok;
+        }
+
+        if (!ok) {
+            qWarning() << "[Auth] Authentication failed for user" << user;
+            utmpLogin(false);
+            return false;
+        }
 
         authenticated = true;
         return true;
@@ -320,166 +332,68 @@ namespace DDM {
                               const QByteArray &cookie) {
         Q_ASSERT(authenticated);
 
-        int pipefd[2];
-        if (pipe(pipefd) == -1) {
-            qWarning() << "[Auth] pipe failed:" << strerror(errno);
+        if (!ensureHelper()) {
             return {};
         }
 
         // Here is most safe place to request the VT switch before opening the session.
         if (!daemonApp->seatdControl()->requestSwitchVt(tty)) {
             qWarning() << "[Auth] Failed to switch to VT" << tty << ":" << strerror(errno);
-            close(pipefd[0]);
-            close(pipefd[1]);
             return {};
         }
 
-        sessionLeaderPid = fork();
-        switch (sessionLeaderPid) {
-        case -1: {
-            // Fork failed
-            qWarning() << "[Auth] fork failed:" << strerror(errno);
-            close(pipefd[0]);
-            close(pipefd[1]);
+        QByteArray payload;
+        {
+            QDataStream ds(&payload, QIODevice::WriteOnly);
+            ds << env.toStringList()
+               << cookie
+               << display
+               << tty
+               << static_cast<int>(type)
+               << command;
+        }
+
+        QByteArray reply;
+        if (!sendRequest(kOpOpenSession, payload, reply)) {
             return {};
         }
-        case 0: {
-            // Child (session leader) process
-            close(pipefd[0]);
 
-            // Delete old signal handlers, in order to close old fds
-            // which are shared with the parent process.
-            delete daemonApp->signalHandler();
-            // The session leader must not keep daemon-owned sockets alive.
-            // In particular, an inherited system bus fd would retain DDM's
-            // well-known names after the daemon exits.
-            closeInheritedFileDescriptors(pipefd[1]);
-
-            // Restore default SIGINT and SIGTERM handlers. We need
-            // the signal hander to terminate ourself, since we're
-            // going to enter an infinite waiting loop and no one can
-            // interrupt us after fork(), except the signal handler.
-            signal(SIGINT, SIG_DFL);
-            signal(SIGTERM, SIG_DFL);
-
-            // Insert necessary environment
-            struct passwd *pw = getpwnam(qPrintable(user));
-            if (pw) {
-                env.insert(QStringLiteral("HOME"), QString::fromLocal8Bit(pw->pw_dir));
-                env.insert(QStringLiteral("PWD"), QString::fromLocal8Bit(pw->pw_dir));
-                env.insert(QStringLiteral("SHELL"), QString::fromLocal8Bit(pw->pw_shell));
-                env.insert(QStringLiteral("USER"), QString::fromLocal8Bit(pw->pw_name));
-                env.insert(QStringLiteral("LOGNAME"), QString::fromLocal8Bit(pw->pw_name));
-            }
-
-            // Open session
-            auto sessionEnv = openSessionInternal(env);
-            if (!sessionEnv.has_value()) {
-                qCritical() << "[SessionLeader] Failed to open session. Exit now.";
-                exit(1);
-            }
-            env = *sessionEnv;
-
-            // Retrieve XDG_SESSION_ID
-            xdgSessionId = env.value(QStringLiteral("XDG_SESSION_ID"));
-            if (xdgSessionId.isEmpty()) {
-                qCritical() << "[SessionLeader] Invalid XDG_SESSION_ID from pam_open_session()";
-                exit(1);
-            }
-            const QByteArray idBytes = xdgSessionId.toLocal8Bit();
-            const quint32 idLen = static_cast<quint32>(idBytes.size());
-            if (!writeAll(pipefd[1], &idLen, sizeof(idLen))
-                || !writeAll(pipefd[1], idBytes.constData(), idBytes.size())) {
-                qCritical() << "[SessionLeader] Failed to write XDG_SESSION_ID to parent process!";
-                exit(1);
-            }
-
-            // RUN!!!
-            UserSession session(this);
-            session.setProcessEnvironment(env);
-            session.start(command, type, cookie);
-            if (!session.waitForStarted()) {
-                qCritical() << "[SessionLeader] Failed to start session process. Exit now.";
-                exit(1);
-            }
-
-            // Send session PID to parent
-            sessionPid = session.processId();
-            if (!writeAll(pipefd[1], &sessionPid, sizeof(qint64))) {
-                qCritical() << "[SessionLeader] Failed to write session PID to parent process!";
-                exit(1);
-            }
-            qInfo() << "[SessionLeader] Session started with PID" << sessionPid;
-
-            session.waitForFinished(-1);
-
-            // Handle session end
-            if (session.exitStatus() == QProcess::CrashExit) {
-                qCritical() << "[SessionLeader] Session process crashed. Exit now.";
-                exit(1);
-            }
-            qInfo() << "[SessionLeader] Session process finished with exit code"
-                    << session.exitCode() << ". Exiting.";
-            exit(session.exitCode());
+        QDataStream in(reply);
+        quint32 op = 0;
+        in >> op;
+        if (op != kOpSessionResult) {
+            qWarning() << "[Auth] unexpected reply op" << op;
+            return {};
         }
-        default: {
-            // Parent process
-            close(pipefd[1]);
 
-            quint32 idLen = 0;
-            if (!readFull(pipefd[0], &idLen, sizeof(idLen))) {
-                qWarning() << "[Auth] Failed to read XDG_SESSION_ID from child process:" << strerror(errno);
-                close(pipefd[0]);
-                return {};
-            }
-            // XDG_SESSION_ID is a short opaque string (numeric or e.g. "c1"),
-            // so guard against a corrupted/oversized length field from the pipe.
-            if (idLen == 0 || idLen > kMaxSessionIdLen) {
-                qWarning() << "[Auth] Invalid XDG_SESSION_ID length:" << idLen;
-                close(pipefd[0]);
-                return {};
-            }
-            QByteArray idBytes(static_cast<int>(idLen), Qt::Uninitialized);
-            if (!readFull(pipefd[0], idBytes.data(), idLen)) {
-                qWarning() << "[Auth] Failed to read XDG_SESSION_ID from child process:" << strerror(errno);
-                close(pipefd[0]);
-                return {};
-            }
-            xdgSessionId = QString::fromLocal8Bit(idBytes);
-
-            if (!readFull(pipefd[0], &sessionPid, sizeof(qint64))) {
-                qWarning() << "[Auth] Failed to read session PID from child process:" << strerror(errno);
-                close(pipefd[0]);
-                return {};
-            }
-            if (sessionPid <= 0) {
-                qWarning() << "[Auth] Invalid session PID from child process:" << sessionPid;
-                close(pipefd[0]);
-                return {};
-            }
-            utmpLogin(true);
-
-            // Monitor child process ends
-            const int readFd = pipefd[0];
-            m_notifier = new QSocketNotifier(readFd, QSocketNotifier::Read);
-            connect(m_notifier, &QSocketNotifier::activated, this, [this, readFd] {
-                close(readFd);
-                m_notifier->setEnabled(false);
-                m_notifier->deleteLater();
-                Q_EMIT sessionFinished();
-            });
-
-            sessionOpened = true;
-            return xdgSessionId;
+        quint32 status = 0;
+        in >> status;
+        if (status != 0 /* Success */) {
+            qWarning() << "[Auth] openSession failed with status" << status;
+            return {};
         }
+
+        QString xdgId;
+        qint64 pid = 0;
+        in >> xdgId >> pid;
+
+        if (xdgId.isEmpty()) {
+            qCritical() << "[Auth] empty XDG_SESSION_ID from helper";
+            return {};
         }
+        if (pid <= 0) {
+            qCritical() << "[Auth] invalid session PID from helper" << pid;
+            return {};
+        }
+
+        xdgSessionId = xdgId;
+        sessionPid = pid;
+        utmpLogin(true);
+        sessionOpened = true;
+
+        return xdgSessionId;
     }
 
-#define CHECK_RET_CLOSE                                                          \
-    if (d->ret != PAM_SUCCESS) {                                                 \
-        qWarning() << "[Auth] closeSession:" << pam_strerror(d->handle, d->ret); \
-        return false;                                                            \
-    }
     bool Auth::closeSession() {
         if (!sessionOpened) {
             qWarning() << "[Auth] closeSession: Session was not opened.";
@@ -487,66 +401,22 @@ namespace DDM {
         }
         qWarning() << "[Auth] Closing session for user" << user;
 
-        d->ret = pam_close_session(d->handle, 0);
-        CHECK_RET_CLOSE
+        // The helper runs the PAM teardown (pam_close_session /
+        // PAM_DELETE_CRED / pam_end) in ~HelperApp(). SIGTERM makes it exit
+        // its event loop gracefully so that destructor runs; kill() is only a
+        // timeout fallback.
+        if (d->helper && d->helper->state() != QProcess::NotRunning) {
+            d->helper->terminate();
+            if (!d->helper->waitForFinished(5000))
+                d->helper->kill();
+        }
+
+        // Record logout while sessionOpened is still set.
+        utmpLogout();
 
         sessionOpened = false;
-        d->ret = pam_setcred(d->handle, PAM_DELETE_CRED);
-        CHECK_RET_CLOSE
-
         qInfo() << "[Auth] Session closed.";
         return true;
-    }
-
-#define CHECK_RET_OPEN                                                                  \
-    if (d->ret != PAM_SUCCESS) {                                                        \
-        qWarning() << "[Auth] openSessionInternal:" << pam_strerror(d->handle, d->ret); \
-        return std::nullopt;                                                            \
-    }
-    std::optional<QProcessEnvironment> Auth::openSessionInternal(const QProcessEnvironment &sessionEnv) {
-        qInfo() << "[Auth] Opening session for user" << user;
-
-        d->ret = pam_setcred(d->handle, PAM_ESTABLISH_CRED);
-        CHECK_RET_OPEN
-
-        // Set PAM_TTY
-        QString vtPath = TtyUtils::path(tty);
-        d->ret = pam_set_item(d->handle, PAM_TTY, qPrintable(vtPath));
-        CHECK_RET_OPEN
-
-        // Set PAM_XDISPLAY
-        if (!display.isEmpty()) {
-            d->ret = pam_set_item(d->handle, PAM_XDISPLAY, qPrintable(display));
-            CHECK_RET_OPEN
-        }
-
-        // Insert environments into new session
-        QStringList envStrs = sessionEnv.toStringList();
-        for (const QString &s : std::as_const(envStrs)) {
-            d->ret = pam_putenv(d->handle, qPrintable(s));
-            CHECK_RET_OPEN
-        }
-
-        // OPEN!!!
-        d->ret = pam_open_session(d->handle, 0);
-        CHECK_RET_OPEN
-
-        qInfo() << "[Auth] Session opened.";
-
-        // Retrieve env vars in new session
-        QProcessEnvironment env;
-        char **envlist = pam_getenvlist(d->handle);
-        if (envlist) {
-            for (int i = 0; envlist[i] != nullptr; ++i) {
-                QString str = QString::fromLocal8Bit(envlist[i]);
-                int equalPos = str.indexOf('=');
-                if (equalPos != -1)
-                    env.insert(str.left(equalPos), str.mid(equalPos + 1));
-                free(envlist[i]);
-            }
-            free(envlist);
-        }
-        return env;
     }
 } // namespace DDM
 

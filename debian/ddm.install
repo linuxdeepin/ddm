@@ -1,5 +1,6 @@
 usr/bin/*
 usr/share/*
+usr/libexec/*
 usr/lib/systemd/*
 usr/lib/tmpfiles.d/*
 usr/lib/sysusers.d/*
