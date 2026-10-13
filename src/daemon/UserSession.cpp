@@ -23,10 +23,8 @@
 #include <QCoreApplication>
 #include <QSocketNotifier>
 
-#include "Auth.h"
 #include "Configuration.h"
 #include "TtyUtils.h"
-#include "TreelandConnector.h"
 #include "UserSession.h"
 #include "XAuth.h"
 
@@ -46,15 +44,30 @@
 #include <utility>
 
 namespace DDM {
-    UserSession::UserSession(Auth *parent)
+    UserSession::UserSession(QObject *parent)
         : QProcess(parent) {
         setChildProcessModifier(std::bind(&UserSession::childModifier, this));
+        // Wire the forwarded finished signal up front (like SDDM does in its
+        // constructor) so a session that exits quickly cannot be missed.
+        connect(this, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, &UserSession::finished);
+    }
+
+    void UserSession::setTty(int tty)
+    {
+        m_tty = tty;
+    }
+
+    void UserSession::setUser(const QString &user)
+    {
+        m_user = user;
     }
 
     void UserSession::start(const QString &command,
                             Display::DisplayServerType type,
                             const QByteArray &cookie) {
         QProcessEnvironment env = processEnvironment();
+        m_type = type;
 
         switch (type) {
         case Display::Treeland: {
@@ -125,24 +138,24 @@ namespace DDM {
                 }
             }
         } else {
-            Q_EMIT finished(1);
+            Q_EMIT finished(1, QProcess::NormalExit);
         }
     }
 
     void UserSession::childModifier() {
-        Auth *auth = qobject_cast<Auth *>(parent());
+        const Display::DisplayServerType type = m_type;
 
         // When the display server is part of the session, leak the VT into
         // the session as stdin so that it stays open without races. Treeland
         // single-mode sessions run under an already active compositor, so they
         // must not take the VT as their controlling terminal.
-        if (auth->type != Display::X11) {
+        if (type != Display::X11) {
             QString ttyString;
             int vtFd = -1;
 
-            if (auth->type != Display::Treeland) {
+            if (type != Display::Treeland) {
                 // open VT and get the fd
-                ttyString = TtyUtils::path(auth->tty);
+                ttyString = TtyUtils::path(m_tty);
                 vtFd = ::open(qPrintable(ttyString), O_RDWR | O_NOCTTY);
             }
 
@@ -197,7 +210,7 @@ namespace DDM {
         }
 
         // switch user
-        const QByteArray username = auth->user.toLocal8Bit();
+        const QByteArray username = m_user.toLocal8Bit();
         struct passwd pw;
         struct passwd *rpw;
         long bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
@@ -294,7 +307,7 @@ namespace DDM {
         // determine stderr log file based on session type
         QString sessionLog = QStringLiteral("%1/%2")
             .arg(QString::fromLocal8Bit(pw.pw_dir))
-            .arg(auth->type == Display::X11
+            .arg(type == Display::X11
                  ? mainConfig.X11.SessionLogFile.get()
                  : mainConfig.Wayland.SessionLogFile.get());
 

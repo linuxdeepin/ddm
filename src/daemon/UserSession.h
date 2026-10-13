@@ -33,18 +33,31 @@ namespace DDM {
     class UserSession : public QProcess {
         Q_OBJECT
     public:
-        explicit UserSession(Auth *parent);
+        explicit UserSession(QObject *parent = nullptr);
+
+        void setTty(int tty);
+        void setUser(const QString &user);
 
         void start(const QString &command,
                    Display::DisplayServerType type,
                    const QByteArray &cookie = QByteArray());
         void stop();
 
+    Q_SIGNALS:
+        // Forwarded from QProcess::finished in the constructor, before any
+        // session process is started. Mirrors SDDM's UserSession so callers
+        // (e.g. HelperApp) can connect to a stable signal that is wired up
+        // ahead of time and cannot miss a short-lived process exit.
+        void finished(int exitCode, QProcess::ExitStatus exitStatus);
+
     private:
         // Don't call it directly, it will be invoked by the child process only
         void childModifier();
 
         QTemporaryFile m_xauthFile;
+        Display::DisplayServerType m_type{ Display::X11 };
+        int m_tty{ 0 };
+        QString m_user;
     };
 }
 

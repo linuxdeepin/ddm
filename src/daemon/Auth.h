@@ -7,8 +7,8 @@
 #include "Display.h"
 
 #include <QObject>
+#include <QProcess>
 #include <QProcessEnvironment>
-#include <QSocketNotifier>
 
 namespace DDM {
     class AuthPrivate;
@@ -49,10 +49,7 @@ namespace DDM {
         /** Logind session ID (the XDG_SESSION_ID env var). Empty means no session */
         QString xdgSessionId{};
 
-        /** PID of the session leader. Positive values are valid */
-        pid_t sessionLeaderPid{ 0 };
-
-        /** PID of the session process started by session leader. Positive values are valid */
+        /** PID of the session process started by session helper. Positive values are valid */
         qint64 sessionPid{ 0 };
 
     public Q_SLOTS:
@@ -83,16 +80,6 @@ namespace DDM {
          */
         bool closeSession();
 
-        /**
-         * Opens PAM session and returns the environment variables set
-         * by PAM modules. Must be called in the child process after
-         * fork()
-         *
-         * @param sessionEnv Environment variables to set for the session
-         * @return Environs retrieved from pam_getenvlist on success, std::nullopt on failure
-         */
-        std::optional<QProcessEnvironment> openSessionInternal(const QProcessEnvironment &sessionEnv);
-
     Q_SIGNALS:
         /**
          * Emitted when the session process ends.
@@ -112,8 +99,14 @@ namespace DDM {
          */
         void utmpLogout();
 
-        /** Child process listener */
-        QSocketNotifier *m_notifier{ nullptr };
+        /** Ensure the session helper is spawned and connected. */
+        bool ensureHelper();
+
+        /** Send a framed request to the helper and read one framed reply. */
+        bool sendRequest(quint32 op, const QByteArray &payload, QByteArray &reply);
+
+        /** Handle helper process exit (session finished). */
+        void onHelperFinished(int exitCode, QProcess::ExitStatus status);
 
         AuthPrivate *d{ nullptr };
     };
