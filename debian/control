@@ -26,6 +26,7 @@ Depends: ${shlibs:Depends},
          dde-seatd,
          treeland,
          libpam-systemd,
+Recommends: deepin-keyring-whitebox,
 Description: a modern display manager for Wayland sessions aiming to be fast, simple and beautiful.
 
 Package: libddm

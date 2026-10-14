@@ -9,6 +9,9 @@ auth    requisite       pam_nologin.so
 # Load environment from /etc/environment
 auth    required        pam_env.so
 
+# Unlock keyring when user auto login
+-auth   optional        pam_deepin_keyring.so
+
 # Allow access without authentication
 auth    required        pam_permit.so
 
@@ -24,6 +27,7 @@ session required       pam_limits.so
 session required       pam_loginuid.so
 session required       pam_systemd.so
 @include common-session
+-session optional      pam_deepin_keyring.so
 -session optional      pam_gnome_keyring.so auto_start
 -session optional      pam_kwallet5.so auto_start
 
