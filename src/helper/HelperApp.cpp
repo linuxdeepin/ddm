@@ -14,6 +14,8 @@
 
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <utmp.h>
+#include <utmpx.h>
 
 #include <QDataStream>
 #include <QDebug>
@@ -94,6 +96,9 @@ namespace DDM {
             m_session->deleteLater();
         }
         closePamSession();
+
+        // Write the logout record (utmp/wtmp), mirroring SDDM's ~HelperApp().
+        utmpLogout();
     }
 
     void HelperApp::sendMsg(quint32 op, const QByteArray &payload)
@@ -181,6 +186,8 @@ namespace DDM {
         in >> user >> pamService >> secret;
 
         const bool ok = doAuthenticate(user, pamService, secret);
+        if (!ok)
+            utmpLogin(false);
         sendMsg(AuthResult, ok ? QByteArray("\x01", 1) : QByteArray("\x00", 1));
     }
 
@@ -292,6 +299,11 @@ namespace DDM {
         }
 
         const qint64 sessionPid = m_session->processId();
+        m_sessionPid = sessionPid;
+        m_sessionStarted = true;
+
+        // Write the successful login record (utmp/wtmp), mirroring SDDM.
+        utmpLogin(true);
 
         QByteArray payload;
         {
@@ -336,6 +348,78 @@ namespace DDM {
 
         // The helper is one-shot per session: exit cleanly.
         QCoreApplication::exit(static_cast<int>(exitCode));
+    }
+
+    void HelperApp::utmpLogin(bool success)
+    {
+        struct utmpx entry { };
+        struct timeval tv;
+
+        entry.ut_type = USER_PROCESS;
+        entry.ut_pid = m_sessionPid;
+
+        // ut_line: vt
+        if (m_tty > 0)
+            strncpy(entry.ut_line, QStringLiteral("tty%1").arg(m_tty).toLocal8Bit().constData(), sizeof(entry.ut_line) - 1);
+
+        // ut_host: displayName
+        if (!m_display.isEmpty())
+            strncpy(entry.ut_host, m_display.toLocal8Bit().constData(), sizeof(entry.ut_host) - 1);
+
+        // ut_user: user
+        strncpy(entry.ut_user, m_user.toLocal8Bit().constData(), sizeof(entry.ut_user) - 1);
+
+        gettimeofday(&tv, NULL);
+        entry.ut_tv.tv_sec = tv.tv_sec;
+        entry.ut_tv.tv_usec = tv.tv_usec;
+
+        // write to utmp
+        setutxent();
+        if (!pututxline(&entry))
+            qWarning() << "Failed to write utmpx: " << strerror(errno);
+        endutxent();
+
+        // append to failed login database btmp
+        if (!success) {
+            updwtmpx("/var/log/btmp", &entry);
+        } else {
+            // append to wtmp
+            updwtmpx("/var/log/wtmp", &entry);
+        }
+    }
+
+    void HelperApp::utmpLogout()
+    {
+        // Only write a logout record if a login was written.
+        if (!m_sessionStarted)
+            return;
+
+        struct utmpx entry { };
+        struct timeval tv;
+
+        entry.ut_type = DEAD_PROCESS;
+        entry.ut_pid = m_sessionPid;
+
+        // ut_line: vt
+        if (m_tty > 0)
+            strncpy(entry.ut_line, QStringLiteral("tty%1").arg(m_tty).toLocal8Bit().constData(), sizeof(entry.ut_line) - 1);
+
+        // ut_host: displayName
+        if (!m_display.isEmpty())
+            strncpy(entry.ut_host, m_display.toLocal8Bit().constData(), sizeof(entry.ut_host) - 1);
+
+        gettimeofday(&tv, NULL);
+        entry.ut_tv.tv_sec = tv.tv_sec;
+        entry.ut_tv.tv_usec = tv.tv_usec;
+
+        // write to utmp
+        setutxent();
+        if (!pututxline(&entry))
+            qWarning() << "Failed to write utmpx: " << strerror(errno);
+        endutxent();
+
+        // append to wtmp
+        updwtmpx("/var/log/wtmp", &entry);
     }
 
     int HelperApp::converse(int num_msg,

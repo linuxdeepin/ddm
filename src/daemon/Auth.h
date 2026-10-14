@@ -87,18 +87,6 @@ namespace DDM {
         void sessionFinished();
 
     private:
-        /**
-         * Write utmp/wtmp/btmp records when a user logs in
-         *
-         * @param success  Was authentication successful
-         */
-        void utmpLogin(bool success);
-
-        /**
-         * Write utmp/wtmp records when a user logs out
-         */
-        void utmpLogout();
-
         /** Ensure the session helper is spawned and connected. */
         bool ensureHelper();
 

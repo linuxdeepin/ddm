@@ -77,6 +77,12 @@ namespace DDM {
         /** Close the PAM session (if open) and end the handle. Idempotent. */
         void closePamSession();
 
+        /** Write utmp/wtmp/btmp records when a user logs in. */
+        void utmpLogin(bool success);
+
+        /** Write utmp/wtmp records when a user logs out. */
+        void utmpLogout();
+
         // PAM conversation state (per authenticate transaction).
         QByteArray m_secret;
         // Stable pointer into m_secret. The PAM conversation callback's appdata
@@ -96,6 +102,11 @@ namespace DDM {
         QByteArray m_cookie;
 
         UserSession *m_session { nullptr };
+
+        // Session process PID (cached for utmp logout after the process ends).
+        qint64 m_sessionPid { 0 };
+        // True once a session was started and a login record was written.
+        bool m_sessionStarted { false };
 
         int m_socketFd { -1 };
         QByteArray m_recvBuffer;
