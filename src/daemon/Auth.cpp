@@ -13,8 +13,6 @@
 
 #include <fcntl.h>
 #include <sys/socket.h>
-#include <utmp.h>
-#include <utmpx.h>
 
 #include <QDataStream>
 #include <QDebug>
@@ -58,72 +56,6 @@ namespace DDM {
     ///////////////////////////
     // utmp helper functions //
     ///////////////////////////
-
-    void Auth::utmpLogin(bool success) {
-        struct utmpx entry { };
-        struct timeval tv;
-
-        entry.ut_type = USER_PROCESS;
-        entry.ut_pid = sessionPid;
-
-        // ut_line: vt
-        if (tty > 0)
-            strncpy(entry.ut_line, QStringLiteral("tty%1").arg(tty).toLocal8Bit().constData(), sizeof(entry.ut_line) - 1);
-
-        // ut_host: displayName
-        if (!display.isEmpty())
-            strncpy(entry.ut_host, display.toLocal8Bit().constData(), sizeof(entry.ut_host) - 1);
-
-        // ut_user: user
-        strncpy(entry.ut_user, user.toLocal8Bit().constData(), sizeof(entry.ut_user) -1);
-
-        gettimeofday(&tv, NULL);
-        entry.ut_tv.tv_sec = tv.tv_sec;
-        entry.ut_tv.tv_usec = tv.tv_usec;
-
-        // write to utmp
-        setutxent();
-        if (!pututxline (&entry))
-            qWarning() << "Failed to write utmpx: " << strerror(errno);
-        endutxent();
-
-        // append to failed login database btmp
-        if (!success) {
-            updwtmpx("/var/log/btmp", &entry);
-        } else {
-            // append to wtmp
-            updwtmpx("/var/log/wtmp", &entry);
-        }
-    }
-
-    void Auth::utmpLogout() {
-        struct utmpx entry { };
-        struct timeval tv;
-
-        entry.ut_type = DEAD_PROCESS;
-        entry.ut_pid = sessionPid;
-
-        // ut_line: vt
-        if (tty > 0)
-            strncpy(entry.ut_line, QStringLiteral("tty%1").arg(tty).toLocal8Bit().constData(), sizeof(entry.ut_line) - 1);
-
-        // ut_host: displayName
-        if (!display.isEmpty())
-            strncpy(entry.ut_host, display.toLocal8Bit().constData(), sizeof(entry.ut_host) - 1);
-
-        gettimeofday(&tv, NULL);
-        entry.ut_tv.tv_sec = tv.tv_sec;
-        entry.ut_tv.tv_usec = tv.tv_usec;
-
-        // write to utmp
-        setutxent();
-        if (!pututxline (&entry))
-            qWarning() << "Failed to write utmpx: " << strerror(errno);
-        endutxent();
-
-        // append to wtmp
-        updwtmpx("/var/log/wtmp", &entry);
-    }
 
     /////////////////////////
     // Auth implementation //
@@ -292,7 +224,6 @@ namespace DDM {
         qInfo() << "[Auth] Starting...";
 
         if (!ensureHelper()) {
-            utmpLogin(false);
             return false;
         }
 
@@ -304,7 +235,6 @@ namespace DDM {
 
         QByteArray reply;
         if (!sendRequest(kOpAuthenticate, payload, reply)) {
-            utmpLogin(false);
             return false;
         }
 
@@ -319,7 +249,6 @@ namespace DDM {
 
         if (!ok) {
             qWarning() << "[Auth] Authentication failed for user" << user;
-            utmpLogin(false);
             return false;
         }
 
@@ -388,7 +317,6 @@ namespace DDM {
 
         xdgSessionId = xdgId;
         sessionPid = pid;
-        utmpLogin(true);
         sessionOpened = true;
 
         return xdgSessionId;
@@ -410,9 +338,6 @@ namespace DDM {
             if (!d->helper->waitForFinished(5000))
                 d->helper->kill();
         }
-
-        // Record logout while sessionOpened is still set.
-        utmpLogout();
 
         sessionOpened = false;
         qInfo() << "[Auth] Session closed.";
