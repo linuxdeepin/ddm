@@ -36,6 +36,7 @@ target_link_libraries(common
         Qt6::DBus
         Qt6::Network
         PkgConfig::LibXau
+        Dtk6::Core
 )
 
 target_include_directories(common INTERFACE

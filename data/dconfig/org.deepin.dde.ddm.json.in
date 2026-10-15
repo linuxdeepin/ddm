@@ -1,0 +1,237 @@
+{
+    "magic": "dsg.config.meta",
+    "version": "1.0",
+    "contents": {
+        "haltCommand": {
+            "value": "@HALT_COMMAND@",
+            "serial": 0,
+            "flags": [],
+            "name": "Halt Command",
+            "name[zh_CN]": "关机命令",
+            "description": "Halt command.",
+            "description[zh_CN]": "关机命令。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "rebootCommand": {
+            "value": "@REBOOT_COMMAND@",
+            "serial": 0,
+            "flags": [],
+            "name": "Reboot Command",
+            "name[zh_CN]": "重启命令",
+            "description": "Reboot command.",
+            "description[zh_CN]": "重启命令。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "namespaces": {
+            "value": [],
+            "serial": 0,
+            "flags": [],
+            "name": "Namespaces",
+            "name[zh_CN]": "命名空间",
+            "description": "Comma-separated list of paths bound to Linux namespaces to enter with setns() before starting the user session.",
+            "description[zh_CN]": "启动用户会话前通过 setns() 进入的 Linux 命名空间路径列表。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "cursorTheme": {
+            "value": "",
+            "serial": 0,
+            "flags": [],
+            "name": "Cursor Theme",
+            "name[zh_CN]": "光标主题",
+            "description": "Cursor theme used in the greeter.",
+            "description[zh_CN]": "登录界面使用的光标主题。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "cursorSize": {
+            "value": "",
+            "serial": 0,
+            "flags": [],
+            "name": "Cursor Size",
+            "name[zh_CN]": "光标大小",
+            "description": "Cursor size used in the greeter.",
+            "description[zh_CN]": "登录界面使用的光标大小。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "x11ServerPath": {
+            "value": "/usr/bin/X",
+            "serial": 0,
+            "flags": [],
+            "name": "X11 Server Path",
+            "name[zh_CN]": "X11 Server 路径",
+            "description": "Path to the X server binary.",
+            "description[zh_CN]": "X server 可执行文件路径。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "x11ServerArguments": {
+            "value": "-nolisten tcp",
+            "serial": 0,
+            "flags": [],
+            "name": "X11 Server Arguments",
+            "name[zh_CN]": "X11 Server 参数",
+            "description": "Arguments passed to the X server invocation.",
+            "description[zh_CN]": "传递给 X server 的启动参数。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "x11SessionDir": {
+            "value": ["/usr/local/share/xsessions", "/usr/share/xsessions"],
+            "serial": 0,
+            "flags": [],
+            "name": "X11 Session Directories",
+            "name[zh_CN]": "X11 会话目录",
+            "description": "Comma-separated list of directories containing available X sessions.",
+            "description[zh_CN]": "包含可用 X 会话的目录列表。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "x11SessionCommand": {
+            "value": "@SESSION_COMMAND@",
+            "serial": 0,
+            "flags": [],
+            "name": "X11 Session Command",
+            "name[zh_CN]": "X11 会话命令",
+            "description": "Path to a script to execute when starting the desktop session.",
+            "description[zh_CN]": "启动桌面会话时执行的脚本路径。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "x11SessionLogFile": {
+            "value": ".local/share/ddm/xorg-session.log",
+            "serial": 0,
+            "flags": [],
+            "name": "X11 Session Log File",
+            "name[zh_CN]": "X11 会话日志文件",
+            "description": "Path to the user session log file, relative to the home directory.",
+            "description[zh_CN]": "用户会话日志文件路径，相对于用户主目录。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "x11DisplayCommand": {
+            "value": "@DATA_INSTALL_DIR@/scripts/Xsetup",
+            "serial": 0,
+            "flags": [],
+            "name": "X11 Display Command",
+            "name[zh_CN]": "X11 显示启动命令",
+            "description": "Path to a script to execute when starting the display server.",
+            "description[zh_CN]": "启动显示服务器时执行的脚本路径。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "x11DisplayStopCommand": {
+            "value": "@DATA_INSTALL_DIR@/scripts/Xstop",
+            "serial": 0,
+            "flags": [],
+            "name": "X11 Display Stop Command",
+            "name[zh_CN]": "X11 显示停止命令",
+            "description": "Path to a script to execute when stopping the display server.",
+            "description[zh_CN]": "停止显示服务器时执行的脚本路径。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "waylandSessionDir": {
+            "value": ["/usr/local/share/wayland-sessions", "/usr/share/wayland-sessions"],
+            "serial": 0,
+            "flags": [],
+            "name": "Wayland Session Directories",
+            "name[zh_CN]": "Wayland 会话目录",
+            "description": "Comma-separated list of directories containing available Wayland sessions.",
+            "description[zh_CN]": "包含可用 Wayland 会话的目录列表。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "waylandSessionCommand": {
+            "value": "@WAYLAND_SESSION_COMMAND@",
+            "serial": 0,
+            "flags": [],
+            "name": "Wayland Session Command",
+            "name[zh_CN]": "Wayland 会话命令",
+            "description": "Path to a script to execute when starting the desktop session.",
+            "description[zh_CN]": "启动桌面会话时执行的脚本路径。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "waylandSessionLogFile": {
+            "value": ".local/share/ddm/wayland-session.log",
+            "serial": 0,
+            "flags": [],
+            "name": "Wayland Session Log File",
+            "name[zh_CN]": "Wayland 会话日志文件",
+            "description": "Path to the user session log file, relative to the home directory.",
+            "description[zh_CN]": "用户会话日志文件路径，相对于用户主目录。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "singleSessionCommand": {
+            "value": "@WAYLAND_SESSION_COMMAND@",
+            "serial": 0,
+            "flags": [],
+            "name": "Single Session Command",
+            "name[zh_CN]": "单例会话命令",
+            "description": "Path to a script to execute when starting the Treeland user session.",
+            "description[zh_CN]": "启动 Treeland 用户会话时执行的脚本路径。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "usersDefaultPath": {
+            "value": "/usr/local/bin:/usr/bin:/bin",
+            "serial": 0,
+            "flags": [],
+            "name": "Users Default Path",
+            "name[zh_CN]": "用户默认 PATH",
+            "description": "Default $PATH for logged in users.",
+            "description[zh_CN]": "已登录用户的默认 $PATH。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "rememberLastUser": {
+            "value": true,
+            "serial": 0,
+            "flags": [],
+            "name": "Remember Last User",
+            "name[zh_CN]": "记住上次用户",
+            "description": "Remember the last successfully logged in user.",
+            "description[zh_CN]": "记住上次成功登录的用户。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "rememberLastSession": {
+            "value": true,
+            "serial": 0,
+            "flags": [],
+            "name": "Remember Last Session",
+            "name[zh_CN]": "记住上次会话",
+            "description": "Remember the session of the last successfully logged in user.",
+            "description[zh_CN]": "记住上次成功登录用户的会话。",
+            "permissions": "read",
+            "visibility": "private"
+        },
+        "autologinUser": {
+            "value": "",
+            "serial": 0,
+            "flags": [],
+            "name": "Autologin User",
+            "name[zh_CN]": "自动登录用户",
+            "description": "User to log in automatically (empty disables autologin).",
+            "description[zh_CN]": "自动登录的用户（为空则禁用自动登录）。",
+            "permissions": "readwrite",
+            "visibility": "public"
+        },
+        "autologinSession": {
+            "value": "",
+            "serial": 0,
+            "flags": [],
+            "name": "Autologin Session",
+            "name[zh_CN]": "自动登录会话",
+            "description": "Session to load for automatic login (overrides the last used session).",
+            "description[zh_CN]": "自动登录时加载的会话（覆盖上次使用的会话）。",
+            "permissions": "readwrite",
+            "visibility": "public"
+        }
+    }
+}
