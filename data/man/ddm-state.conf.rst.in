@@ -14,12 +14,14 @@ ddm configuration
 SYNOPSIS
 ========
 
-~ddm/state.conf
+@STATE_DIR@/state.conf
 
 DESCRIPTION
 ===========
 
 This file carries state configuration for the ddm display manager **ddm**\(1\).
+It lives in the home directory of the **dde** user, which is **@STATE_DIR@**.
+It is written by ddm and does not need to be edited by hand.
 
 OPTIONS
 =======
@@ -39,6 +41,6 @@ All options are configured in the [Last] section:
 SEE ALSO
 ========
 
-**ddm**\(1\)
+**ddm**\(1\), **ddm.conf**\(5\)
 
-The full documentation for ddm is available at https://github.com/ddm/ddm
+The full documentation for ddm is available at https://github.com/linuxdeepin/ddm

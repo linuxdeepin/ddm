@@ -55,10 +55,23 @@ OPTIONS
 
 `CursorTheme=`
 	Name of the cursor theme to be set before starting
-	the display server.
+	an X11 display server.
 
 `CursorSize=`
-	Cursor size to be set before starting the display server.
+	Cursor size to be set before starting an X11 display server.
+
+[Autologin] section:
+
+`User=`
+	User to log in automatically. An empty value disables automatic login.
+	The user must not be the greeter user **dde**.
+	Default value is empty.
+
+`Session=`
+	Session to load for automatic login. This overrides the last used
+	session. If it is empty, the session remembered in
+	**ddm-state.conf**\(5\) is used.
+	Default value is empty.
 
 [X11] section:
 
@@ -82,18 +95,16 @@ OPTIONS
 
 `SessionLogFile=`
 	Path to the user session log file, relative to the home directory.
-    Default value is ".local/share/ddm/xorg-session.log".
+	Default value is ".local/share/ddm/xorg-session.log".
 
 `DisplayCommand=`
-	Path of script to execute when starting the display server.
-	The script will be executed as root when General.DisplayServer
-	is "x11", otherwise as ddm user.
+	Path of script to execute when starting the X11 display server.
+	The script is executed as root by the ddm daemon.
 	Default value is "@DATA_INSTALL_DIR@/scripts/Xsetup".
 
 `DisplayStopCommand=`
-	Path of script to execute when stopping the display server.
-	The script will be executed as root when General.DisplayServer
-	is "x11", otherwise as ddm user.
+	Path of script to execute when stopping the X11 display server.
+	The script is executed as root by the ddm daemon.
 	Default value is "@DATA_INSTALL_DIR@/scripts/Xstop".
 
 [Wayland] section:
@@ -115,9 +126,12 @@ OPTIONS
 [Single] section:
 
 `SessionCommand=`
-	Path of script to execute when starting the user session for Treeland.
-    This script receives the value of the "Exec" setting in the ".desktop" file
-    of the selected session and run it.
+	Path of script to execute when starting the user session for a
+	single-mode Treeland session (a session whose desktop file sets
+	X-DDE-SINGLE-WAYLAND=true). Such a session runs inside the already
+	running Treeland instance instead of starting its own compositor.
+	The script receives the value of the "Exec" setting in the ".desktop"
+	file of the selected session and runs it.
 	Default value is "@WAYLAND_SESSION_COMMAND@".
 
 [Users] section:
@@ -142,6 +156,6 @@ OPTIONS
 SEE ALSO
 ========
 
-**ddm**\(1\)
+**ddm**\(1\), **ddm-state.conf**\(5\)
 
-The full documentation for ddm is available at https://github.com/ddm/ddm
+The full documentation for ddm is available at https://github.com/linuxdeepin/ddm
