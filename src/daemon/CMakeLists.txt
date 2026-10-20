@@ -23,8 +23,10 @@ set(DAEMON_SOURCES
     DdeSeatdControl.cpp
     Display.cpp
     DisplayManager.cpp
+    LogindDBusTypes.cpp
     PowerManager.cpp
     SeatManager.cpp
+    Session.cpp
     SocketServer.cpp
     TreelandConnector.cpp
     UserSession.cpp

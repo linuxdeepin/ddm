@@ -24,7 +24,6 @@
 #include <QDataStream>
 #include <QLocalSocket>
 
-#include "Session.h"
 
 namespace DDM {
     class SocketWriter {
@@ -35,7 +34,6 @@ namespace DDM {
 
         SocketWriter &operator << (const quint32 &u);
         SocketWriter &operator << (const QString &s);
-        SocketWriter &operator << (const Session &s);
 
     private:
         QByteArray data;
