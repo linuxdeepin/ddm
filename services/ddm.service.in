@@ -1,6 +1,6 @@
 [Unit]
 Description=Deepin Display Manager
-Documentation=man:ddm(1) man:ddm.conf(5)
+Documentation=man:ddm(1)
 Conflicts=getty@tty${DDM_INITIAL_VT}.service
 After=systemd-user-sessions.service getty@tty${DDM_INITIAL_VT}.service plymouth-quit.service systemd-logind.service dde-seatd.service dde-dconfig-daemon.service
 PartOf=graphical.target
