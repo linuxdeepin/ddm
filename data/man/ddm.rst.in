@@ -38,28 +38,33 @@ user.
 OPTIONS
 =======
 
---example-config
-	Print the complete current configuration to stdout and exit.
-
 --help, -h
 	Show help message and exit.
+
+CONFIGURATION
+=============
+
+DDM stores its configuration through the DConfig framework of the Deepin
+Desktop Environment, under the application id ``org.deepin.dde.ddm``. The
+schema installed at **@DDM_DCONFIG_META_FILE@** names and describes every
+option; it is the authoritative option list.
+
+DDM runs as root, so the effective values belong to the root user. Read or
+change them as the administrator, for example::
+
+    dde-dconfig -u 0 list
+    dde-dconfig -u 0 get -a org.deepin.dde.ddm -r org.deepin.dde.ddm -k autologinUser
+    dde-dconfig -u 0 set -a org.deepin.dde.ddm -r org.deepin.dde.ddm -k autologinUser -v alice
+
+``autologinUser`` enables automatic login. ``autologinSession`` selects the
+session to start; when it is empty, DDM uses the session of the last
+successful login.
 
 FILES
 =====
 
-**@CONFIG_FILE@**
-	Local configuration file.
-
-**@CONFIG_DIR@**
-	Local configuration directory, has higher precedence than the
-	configuration file.
-
-**@SYSTEM_CONFIG_DIR@**
-	System configuration directory, has the lowest precedence.
-
-**@STATE_DIR@/state.conf**
-	State file remembering the last user and session.
-	See **ddm-state.conf**\(5\).
+**@DDM_DCONFIG_META_FILE@**
+	Schema describing the DDM configuration options.
 
 **@RUNTIME_DIR@**
 	Runtime directory, holds the X11 authorization file of the display
@@ -70,7 +75,5 @@ FILES
 
 SEE ALSO
 ========
-
-**ddm.conf**\(5\), **ddm-state.conf**\(5\)
 
 The full documentation for ddm is available at https://github.com/linuxdeepin/ddm

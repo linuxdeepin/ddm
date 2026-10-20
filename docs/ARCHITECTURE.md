@@ -81,20 +81,21 @@ against `/run/dde-seatd.sock`.
 3. The Treeland greeter connects to that socket and sends `Connect` with the
    path of its Wayland socket. The daemon connects to it and binds the private
    `treeland_ddm_v1` protocol. It then sends the host name, the power
-   capabilities and `ShowGreeter`.
+   capabilities, the last user and session, the session directories and
+   `ShowGreeter`.
 4. When the greeter sends `Login`, the daemon authenticates the user with
-   `ddm-helper`. On success it saves the last user and session in
-   `state.conf` and starts the session.
+   `ddm-helper`. On success it starts the session and records the user and
+   session in its own configuration as `lastUser` and `lastSession`.
 5. The session type decides what happens next:
    - **Single-mode Treeland** (`X-DDE-SINGLE-WAYLAND=true`): the daemon asks
      `dde-seatd` for a grouped VT, opens the logind session and asks Treeland to
      switch to the user.
    - **Wayland**: the daemon stops Treeland and runs the session's compositor
-     through the `Wayland.SessionCommand` script.
+     through the `waylandSessionCommand` script.
    - **X11**: the daemon stops Treeland, starts the X server with an
      authorization file in `RUNTIME_DIR` (`/run/ddm/xauth_XXXXXX`), writes the
      user session's authorization cookie to `/tmp/xauth_XXXXXX` and runs the
-     session through the `X11.SessionCommand` script.
+     session through the `x11SessionCommand` script.
 6. `Logout`, `Lock` and `Unlock` messages are forwarded to systemd-logind
    (`TerminateSession()`, `LockSession()`, `UnlockSession()`). Unlocking also
    activates the session again, either through Treeland or by switching to the
@@ -116,9 +117,13 @@ The greeter talks to the daemon over a local socket named
 
 - greeter to daemon: `Connect`, `Login`, `Logout`, `Lock`, `Unlock`,
   `PowerOff`, `Reboot`, `Suspend`, `Hibernate`, `HybridSleep`, `BackToNormal`.
-- daemon to greeter: `HostName`, `Capabilities`, `LoginFailed`,
-  `InformationMessage`, `UserActivateMessage`, `SwitchToGreeter`,
-  `UserLoggedIn`, `ShowGreeter`.
+- daemon to greeter: `HostName`, `Capabilities`, `LastLogin`, `SessionDirs`,
+  `LoginFailed`, `InformationMessage`, `UserActivateMessage`,
+  `SwitchToGreeter`, `UserLoggedIn`, `ShowGreeter`.
+
+`Login` carries the user name, the password and the absolute path of the
+desktop file of the session to log in to; the daemon derives the session type
+from the session directories it configures.
 
 The opcodes are defined in `src/common/Messages.h`.
 
@@ -140,8 +145,17 @@ daemon socket and to know which user was activated last.
 
 ## Configuration
 
-Configuration is loaded, from lowest to highest precedence, from the system
-configuration directory (`${CMAKE_INSTALL_PREFIX}/lib/ddm/ddm.conf.d`, which
-defaults to `/usr/local/lib/ddm/ddm.conf.d`), `/etc/ddm.conf.d` and
-`/etc/ddm.conf`. The last user and session are stored in `state.conf` in the
-`dde` user's home directory. See **ddm.conf**(5) and **ddm-state.conf**(5).
+The daemon reads its configuration through the DConfig framework of the Deepin
+Desktop Environment, under the application id `org.deepin.dde.ddm`. The schema
+names and describes every option and is installed together with the daemon, so
+there is no separate option list in the documentation.
+
+The greeter does not read DDM configuration: the daemon passes what it needs
+over the greeter socket.
+
+Which sessions exist, and which of them is offered for a user, is decided by the
+greeter: the daemon sends it the directories the sessions are installed in
+(`x11SessionDirs` and `waylandSessionDirs`) when it connects, and receives back
+the absolute path of the desktop file of the session to log in to. The daemon
+also records the last logged in user and session and sends them to the greeter
+as `LastLogin`; the greeter uses them to preselect the login.

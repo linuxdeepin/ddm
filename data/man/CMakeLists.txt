@@ -19,7 +19,4 @@ function(BUILD_MAN_PAGE _sources _src _dst)
 endfunction()
 
 build_man_page(MAN1_OUTPUT "ddm.rst" "ddm.1")
-build_man_page(MAN5_OUTPUT "ddm.conf.rst" "ddm.conf.5")
-
 install(FILES ${MAN1_OUTPUT} DESTINATION "${CMAKE_INSTALL_FULL_MANDIR}/man1")
-install(FILES ${MAN5_OUTPUT} DESTINATION "${CMAKE_INSTALL_FULL_MANDIR}/man5")
