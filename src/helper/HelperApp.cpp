@@ -3,7 +3,6 @@
 
 #include "HelperApp.h"
 
-#include "Configuration.h"
 #include "SignalHandler.h"
 #include "TtyUtils.h"
 #include "UserSession.h"
@@ -199,7 +198,11 @@ namespace DDM {
         int tty = 0;
         int type = 0;
         QString command;
-        in >> envList >> cookie >> display >> tty >> type >> command;
+        QString sessionCommand;
+        QString sessionLogFile;
+        QStringList namespaces;
+        in >> envList >> cookie >> display >> tty >> type >> command
+           >> sessionCommand >> sessionLogFile >> namespaces;
 
         QProcessEnvironment env;
         for (const QString &s : envList) {
@@ -275,6 +278,9 @@ namespace DDM {
         m_session = new UserSession(this);
         m_session->setUser(m_user);
         m_session->setTty(m_tty);
+        m_session->setSessionCommand(sessionCommand);
+        m_session->setSessionLogFile(sessionLogFile);
+        m_session->setNamespaces(namespaces);
         m_session->setProcessEnvironment(finalEnv);
 
         // Connect to UserSession's forwarded finished signal BEFORE starting

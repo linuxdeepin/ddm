@@ -20,7 +20,6 @@
 #ifndef DDM_SESSION_H
 #define DDM_SESSION_H
 
-#include <QDataStream>
 #include <QDir>
 #include <QSharedPointer>
 #include <QProcessEnvironment>
@@ -38,6 +37,7 @@ namespace DDM {
 
         explicit Session();
         Session(Type type, const QString &fileName);
+        explicit Session(const QString &filePath);
 
         bool isValid() const;
 
@@ -68,6 +68,7 @@ namespace DDM {
         QProcessEnvironment additionalEnv() const;
 
         void setTo(Type type, const QString &name);
+        void setTo(const QString &filePath);
 
         Session &operator=(const Session &other);
 
@@ -91,19 +92,6 @@ namespace DDM {
 
         friend class SessionModel;
     };
-
-    inline QDataStream &operator<<(QDataStream &stream, const Session &session) {
-        stream << quint32(session.type()) << session.fileName();
-        return stream;
-    }
-
-    inline QDataStream &operator>>(QDataStream &stream, Session &session) {
-        quint32 type;
-        QString fileName;
-        stream >> type >> fileName;
-        session.setTo(static_cast<Session::Type>(type), fileName);
-        return stream;
-    }
 }
 
 #endif // DDM_SESSION_H

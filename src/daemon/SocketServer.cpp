@@ -20,6 +20,7 @@
 
 #include "SocketServer.h"
 
+#include "Configuration.h"
 #include "DaemonApp.h"
 #include "Messages.h"
 #include "PowerManager.h"
@@ -28,6 +29,16 @@
 #include "Utils.h"
 
 #include <QLocalServer>
+
+namespace {
+    QStringList sessionDirs(const QList<QVariant> &dirs) {
+        QStringList paths;
+        paths.reserve(dirs.size());
+        for (const QVariant &dir : dirs)
+            paths.append(dir.toString());
+        return paths;
+    }
+} // namespace
 
 namespace DDM {
     SocketServer::SocketServer(QObject *parent) : QObject(parent) {
@@ -144,15 +155,24 @@ namespace DDM {
                     // send host name
                     SocketWriter(socket) << quint32(DaemonMessages::HostName) << daemonApp->hostName();
 
+                    // send the last successful login before the greeter fills its models
+                    SocketWriter(socket) << quint32(DaemonMessages::LastLogin)
+                                         << mainConfig()->lastUser()
+                                         << mainConfig()->lastSession();
+
+                    // send session directories
+                    SocketWriter(socket) << quint32(DaemonMessages::SessionDirs)
+                                         << sessionDirs(mainConfig()->waylandSessionDirs())
+                                         << sessionDirs(mainConfig()->x11SessionDirs());
+
                     // emit signal
                     emit connected(socket);
                 }
                 break;
                 case GreeterMessages::Login: {
-                    // read username, pasword etc.
-                    QString user, password;
-                    Session session;
-                    input >> user >> password >> session;
+                    // read username, password and the session
+                    QString user, password, sessionPath;
+                    input >> user >> password >> sessionPath;
                     if (!input.commitTransaction())
                         return;
 
@@ -160,6 +180,7 @@ namespace DDM {
                     qDebug() << "Message received from greeter: Login";
 
                     // emit signal
+                    Session session(sessionPath);
                     emit login(socket, user, password, session);
                 }
                 break;

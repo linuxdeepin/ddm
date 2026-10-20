@@ -75,8 +75,8 @@ namespace DDM {
 
         // set process environment
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        env.insert(QStringLiteral("XCURSOR_THEME"), mainConfig.Theme.CursorTheme.get());
-        QString xcursorSize = mainConfig.Theme.CursorSize.get();
+        env.insert(QStringLiteral("XCURSOR_THEME"), mainConfig()->x11CursorTheme());
+        QString xcursorSize = mainConfig()->x11CursorSize();
         if (!xcursorSize.isEmpty())
             env.insert(QStringLiteral("XCURSOR_SIZE"), xcursorSize);
         process->setProcessEnvironment(env);
@@ -90,8 +90,8 @@ namespace DDM {
 
         // start display server
         QStringList args;
-        process->setProgram(mainConfig.X11.ServerPath.get());
-        args << mainConfig.X11.ServerArguments.get().split(QLatin1Char(' '), Qt::SkipEmptyParts)
+        process->setProgram(mainConfig()->x11ServerPath());
+        args << mainConfig()->x11ServerArguments().split(QLatin1Char(' '), Qt::SkipEmptyParts)
              << QStringLiteral("-background") << QStringLiteral("none")
              << QStringLiteral("-seat") << static_cast<Display *>(parent())->name
              << QStringLiteral("vt%1").arg(vt)
@@ -196,7 +196,8 @@ namespace DDM {
         // log message
         qDebug() << "Display server stopped.";
 
-        QStringList displayStopCommand = QProcess::splitCommand(mainConfig.X11.DisplayStopCommand.get());
+        QStringList displayStopCommand =
+            QProcess::splitCommand(mainConfig()->x11DisplayStopCommand());
 
         // create display setup script process
         QProcess *displayStopScript = new QProcess();
@@ -205,7 +206,7 @@ namespace DDM {
         QProcessEnvironment env;
         env.insert(QStringLiteral("DISPLAY"), display);
         env.insert(QStringLiteral("HOME"), QStringLiteral("/"));
-        env.insert(QStringLiteral("PATH"), mainConfig.Users.DefaultPath.get());
+        env.insert(QStringLiteral("PATH"), mainConfig()->usersDefaultPath());
         env.insert(QStringLiteral("SHELL"), QStringLiteral("/bin/sh"));
         displayStopScript->setProcessEnvironment(env);
 
@@ -236,11 +237,11 @@ namespace DDM {
         QProcessEnvironment env;
         env.insert(QStringLiteral("DISPLAY"), display);
         env.insert(QStringLiteral("HOME"), QStringLiteral("/"));
-        env.insert(QStringLiteral("PATH"), mainConfig.Users.DefaultPath.get());
+        env.insert(QStringLiteral("PATH"), mainConfig()->usersDefaultPath());
         env.insert(QStringLiteral("XAUTHORITY"), m_xauth.authPath());
         env.insert(QStringLiteral("SHELL"), QStringLiteral("/bin/sh"));
-        env.insert(QStringLiteral("XCURSOR_THEME"), mainConfig.Theme.CursorTheme.get());
-        QString xcursorSize = mainConfig.Theme.CursorSize.get();
+        env.insert(QStringLiteral("XCURSOR_THEME"), mainConfig()->x11CursorTheme());
+        QString xcursorSize = mainConfig()->x11CursorSize();
         if (!xcursorSize.isEmpty())
             env.insert(QStringLiteral("XCURSOR_SIZE"), xcursorSize);
         setCursor->setProcessEnvironment(env);
@@ -259,8 +260,8 @@ namespace DDM {
         }
 
         // start display setup script
-        qDebug() << "Running display setup script " << mainConfig.X11.DisplayCommand.get();
-        QStringList displayCommand = QProcess::splitCommand(mainConfig.X11.DisplayCommand.get());
+        qDebug() << "Running display setup script " << mainConfig()->x11DisplayCommand();
+        QStringList displayCommand = QProcess::splitCommand(mainConfig()->x11DisplayCommand());
         const QString program = displayCommand.takeFirst();
         displayScript->start(program, displayCommand);
 
@@ -270,9 +271,6 @@ namespace DDM {
         // wait for finished
         if (!displayScript->waitForFinished(30000))
             displayScript->kill();
-
-        // reload config if needed
-        mainConfig.load();
     }
 
     void XorgDisplayServer::changeOwner(const QString &fileName) {

@@ -88,13 +88,13 @@ const QString UPOWER_OBJECT = QStringLiteral("org.freedesktop.UPower");
         }
 
         void powerOff() const {
-            auto command = QProcess::splitCommand(mainConfig.HaltCommand.get());
+            auto command = QProcess::splitCommand(mainConfig()->haltCommand());
             const QString program = command.takeFirst();
             QProcess::execute(program, command);
         }
 
         void reboot() const {
-            auto command = QProcess::splitCommand(mainConfig.RebootCommand.get());
+            auto command = QProcess::splitCommand(mainConfig()->rebootCommand());
             const QString program = command.takeFirst();
             QProcess::execute(program, command);
         }

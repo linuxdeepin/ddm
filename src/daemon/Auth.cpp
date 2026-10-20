@@ -3,6 +3,7 @@
 
 #include "Auth.h"
 
+#include "Configuration.h"
 #include "Constants.h"
 #include "DaemonApp.h"
 #include "DdeSeatdControl.h"
@@ -261,6 +262,35 @@ namespace DDM {
                               const QByteArray &cookie) {
         Q_ASSERT(authenticated);
 
+        // Everything the helper needs to run the session comes from the
+        // configuration here: the helper must not read it, because creating a
+        // DConfig object starts a thread and opens a D-Bus connection in the
+        // process that forks inside pam_open_session().
+        QString sessionCommand;
+        QString sessionLogFile;
+        switch (type) {
+        case Display::Treeland:
+            sessionCommand = mainConfig()->singleSessionCommand();
+            sessionLogFile = mainConfig()->waylandSessionLogFile();
+            break;
+        case Display::X11:
+            sessionCommand = mainConfig()->x11SessionCommand();
+            sessionLogFile = mainConfig()->x11SessionLogFile();
+            break;
+        case Display::Wayland:
+            sessionCommand = mainConfig()->waylandSessionCommand();
+            sessionLogFile = mainConfig()->waylandSessionLogFile();
+            break;
+        default:
+            qWarning() << "[Auth] unknown session type" << type;
+            return {};
+        }
+
+        QStringList namespaces;
+        const auto configuredNamespaces = mainConfig()->namespaces();
+        for (const QVariant &ns : configuredNamespaces)
+            namespaces.append(ns.toString());
+
         if (!ensureHelper()) {
             return {};
         }
@@ -279,7 +309,10 @@ namespace DDM {
                << display
                << tty
                << static_cast<int>(type)
-               << command;
+               << command
+               << sessionCommand
+               << sessionLogFile
+               << namespaces;
         }
 
         QByteArray reply;

@@ -34,6 +34,21 @@
 const QString s_entryExtention = QStringLiteral(".desktop");
 
 namespace DDM {
+    namespace {
+        bool isInstalledIn(const QVariantList &dirPaths, const QString &filePath)
+        {
+            if (!QFileInfo::exists(filePath))
+                return false;
+
+            const QString dirPath = QFileInfo(filePath).absolutePath();
+            for (const auto &dir : std::as_const(dirPaths)) {
+                if (QDir::cleanPath(dirPath) == QDir(dir.toString()).absolutePath())
+                    return true;
+            }
+            return false;
+        }
+    } // namespace
+
     // QSettings::IniFormat can't be used to read .desktop files due to different
     // syntax of values (escape sequences, quoting, automatic QStringList detection).
     // So implement yet another .desktop file parser.
@@ -96,6 +111,12 @@ namespace DDM {
         : Session()
     {
         setTo(type, fileName);
+    }
+
+    Session::Session(const QString &filePath)
+        : Session()
+    {
+        setTo(filePath);
     }
 
     bool Session::isValid() const
@@ -191,21 +212,15 @@ namespace DDM {
         if (!fileName.endsWith(s_entryExtention))
             fileName += s_entryExtention;
 
-        QFileInfo info(fileName);
-
         m_type = UnknownSession;
         m_valid = false;
         m_desktopNames.clear();
 
-        QStringList sessionDirs;
-
         switch (type) {
         case WaylandSession:
-            sessionDirs = mainConfig.Wayland.SessionDir.get();
             m_xdgSessionType = QStringLiteral("wayland");
             break;
         case X11Session:
-            sessionDirs = mainConfig.X11.SessionDir.get();
             m_xdgSessionType = QStringLiteral("x11");
             break;
         default:
@@ -213,19 +228,30 @@ namespace DDM {
             break;
         }
 
+        QStringList candidates;
+        if (QDir::isAbsolutePath(fileName)) {
+            candidates << fileName;
+        } else {
+            const QVariantList sessionDirs = type == WaylandSession
+                ? mainConfig()->waylandSessionDirs()
+                : mainConfig()->x11SessionDirs();
+            for (const auto &dir : std::as_const(sessionDirs))
+                candidates << QDir(dir.toString()).absoluteFilePath(fileName);
+        }
+
         QFile file;
-        for (const auto &path : std::as_const(sessionDirs)) {
-            m_dir.setPath(path);
-            m_fileName = m_dir.absoluteFilePath(fileName);
-
-            qDebug() << "Reading from" << m_fileName;
-
-            file.setFileName(m_fileName);
-            if (file.open(QIODevice::ReadOnly))
+        for (const auto &candidate : std::as_const(candidates)) {
+            file.setFileName(candidate);
+            if (file.open(QIODevice::ReadOnly)) {
+                m_fileName = candidate;
+                m_dir = QFileInfo(candidate).absoluteDir();
                 break;
+            }
         }
         if (!file.isOpen())
             return;
+
+        qDebug() << "Reading from" << m_fileName;
 
         QSettings settings(m_fileName, DesktopFileFormat::format());
 
@@ -264,6 +290,37 @@ namespace DDM {
 
         m_type = type;
         m_valid = true;
+    }
+
+    void Session::setTo(const QString &filePath)
+    {
+        m_type = UnknownSession;
+        m_valid = false;
+        m_fileName.clear();
+        m_dir = QDir();
+
+        if (!QDir::isAbsolutePath(filePath)) {
+            qWarning() << "Not an absolute session path:" << filePath;
+            return;
+        }
+
+        if (!QFileInfo::exists(filePath)) {
+            qWarning() << "Session file does not exist:" << filePath;
+            return;
+        }
+
+        if (!mainConfig())
+            return;
+
+        if (isInstalledIn(mainConfig()->waylandSessionDirs(), filePath))
+            setTo(WaylandSession, filePath);
+        else if (isInstalledIn(mainConfig()->x11SessionDirs(), filePath))
+            setTo(X11Session, filePath);
+        else
+            qWarning() << "Session file is outside the configured session directories:"
+                       << filePath
+                       << "wayland:" << mainConfig()->waylandSessionDirs()
+                       << "x11:" << mainConfig()->x11SessionDirs();
     }
 
     Session &Session::operator=(const Session &other)

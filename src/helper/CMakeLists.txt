@@ -1,9 +1,12 @@
 # The session helper. It is a standalone single-threaded QCoreApplication that
 # runs the full PAM transaction (authenticate + open_session) and starts the
 # user's desktop session. It deliberately links only against the "common"
-# library (Configuration, Session, XAuth, ...) and must NOT pull in daemon-only
-# machinery (DBus, display-server management, seatd control), so that it stays
-# single-threaded and safe to fork() inside PAM modules.
+# library, which provides XAuth, the signal handler and session helpers, and
+# must NOT pull in daemon-only machinery (DBus, display-server management,
+# seatd control), so that it stays single-threaded and safe to fork() inside
+# PAM modules. For the same reason it reads no configuration of its own:
+# creating a DConfig object would start a thread and open a DBus connection.
+# Everything a session needs is part of the request.
 set(HELPER_SOURCES
     HelperApp.cpp
     ${CMAKE_SOURCE_DIR}/src/daemon/UserSession.cpp

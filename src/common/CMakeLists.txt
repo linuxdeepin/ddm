@@ -1,23 +1,25 @@
 configure_file("Constants.h.in" "Constants.h" IMMEDIATE @ONLY)
+
+# Keep free of DConfig and D-Bus so that the helper stays a single-threaded 
+# process. Reading the configuration lives in the daemon only.
 set(PUBLIC_HEADERS
-    ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.h
-    ${CMAKE_SOURCE_DIR}/src/common/Configuration.h
     ${CMAKE_SOURCE_DIR}/src/common/Messages.h
-    ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.h
     ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.h
+)
+
+set(INTERNAL_HEADERS
+    ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.h
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.h
     ${CMAKE_BINARY_DIR}/src/common/Constants.h
 )
 
 set(SRCS
-    ${CMAKE_SOURCE_DIR}/src/common/ConfigReader.cpp
-    ${CMAKE_SOURCE_DIR}/src/common/Configuration.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SignalHandler.cpp
     ${CMAKE_SOURCE_DIR}/src/common/SocketWriter.cpp
     ${CMAKE_SOURCE_DIR}/src/common/XAuth.cpp
 )
 
-add_library(common SHARED ${PUBLIC_HEADERS} ${SRCS})
+add_library(common SHARED ${PUBLIC_HEADERS} ${INTERNAL_HEADERS} ${SRCS})
 
 set_target_properties(common PROPERTIES
     VERSION ${CMAKE_PROJECT_VERSION}
@@ -28,7 +30,7 @@ set_target_properties(common PROPERTIES
 
 target_link_libraries(common
     PRIVATE
-        Qt6::DBus
+        Qt6::Core
         Qt6::Network
         PkgConfig::LibXau
 )

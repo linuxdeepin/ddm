@@ -2,12 +2,13 @@
 Description=Deepin Display Manager
 Documentation=man:ddm(1) man:ddm.conf(5)
 Conflicts=getty@tty${DDM_INITIAL_VT}.service
-After=systemd-user-sessions.service getty@tty${DDM_INITIAL_VT}.service plymouth-quit.service systemd-logind.service dde-seatd.service
+After=systemd-user-sessions.service getty@tty${DDM_INITIAL_VT}.service plymouth-quit.service systemd-logind.service dde-seatd.service dde-dconfig-daemon.service
 PartOf=graphical.target
 StartLimitIntervalSec=30
 StartLimitBurst=2
 
 Requires=dde-seatd.service
+Wants=dde-dconfig-daemon.service
 
 [Service]
 ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/ddm
