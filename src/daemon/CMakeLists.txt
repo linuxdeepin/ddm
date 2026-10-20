@@ -17,8 +17,19 @@ add_custom_command(
 )
 
 configure_file(config.h.in config.h IMMEDIATE @ONLY)
+
+# Generate the configuration classes from the DConfig schema. They are used by
+# the daemon only: the session helper must not read the configuration, because
+# creating a DConfig object starts a thread and opens a D-Bus connection.
+dtk_add_config_to_cpp(DDM_CONFIG_HEADER
+    "${CMAKE_BINARY_DIR}/data/dconfig/${DDM_DCONFIG_APP_ID}.json"
+    OUTPUT_FILE_NAME "DdmConfig.hpp"
+    CLASS_NAME "DdmConfig"
+)
+
 set(DAEMON_SOURCES
     Auth.cpp
+    Configuration.cpp
     DaemonApp.cpp
     DdeSeatdControl.cpp
     Display.cpp
@@ -32,6 +43,7 @@ set(DAEMON_SOURCES
     UserSession.cpp
     XorgDisplayServer.cpp
     TreelandDisplayServer.cpp
+    ${DDM_CONFIG_HEADER}
     ${TREELAND_DDM_SOURCE}
 )
 
@@ -64,6 +76,7 @@ add_executable(ddm ${DAEMON_SOURCES})
 target_link_libraries(ddm
     PRIVATE
         common
+        Dtk6::Core
     PUBLIC
         Qt6::DBus
         Qt6::Network

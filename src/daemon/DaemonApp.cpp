@@ -92,9 +92,19 @@ namespace DDM {
                 m_seatManager, &SeatManager::handleVtChanged);
         if (!m_seatdControl->connectEventSocket())
             qWarning() << "Failed to connect dde-seatd event socket during startup";
+
+        m_configurations = new Configurations(this);
+        connect(m_configurations,
+                &Configurations::readyChanged,
+                this,
+                &DaemonApp::onConfigurationsReady);
+
         // log message
         qDebug() << "Starting...";
+    }
 
+    void DaemonApp::onConfigurationsReady() {
+        qDebug() << "Configuration initialized, starting seat manager";
         m_seatManager->initialize();
     }
 
@@ -121,16 +131,9 @@ int main(int argc, char **argv) {
     if (arguments.contains(QStringLiteral("--help")) || arguments.contains(QStringLiteral("-h"))) {
         std::cout << "Usage: ddm [options]\n"
                   << "Options: \n"
-                  << "  --example-config    Print the complete current configuration to stdout" << std::endl;
+                  << "  --help, -h    Show this message and exit" << std::endl;
 
         return EXIT_FAILURE;
-    }
-
-    // spit a complete config file on stdout and quit on demand
-    if (arguments.contains(QStringLiteral("--example-config"))) {
-        DDM::mainConfig.wipe();
-        QTextStream(stdout) << DDM::mainConfig.toConfigFull();
-        return EXIT_SUCCESS;
     }
 
     // create application

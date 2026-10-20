@@ -23,8 +23,9 @@ namespace DDM {
      * long-running QCoreApplication that services two commands:
      *
      *   - authenticate(user, pamService, secret): full PAM authentication
-     *   - openSession(env, cookie, display, tty, type, command): PAM session +
-     *     start the user's desktop session
+     *   - openSession(env, cookie, display, tty, type, command, sessionCommand,
+     *     sessionLogFile, namespaces): PAM session + start the user's desktop
+     *     session
      *
      * Running the whole PAM transaction (authenticate + open_session) here is
      * what makes ddm immune to the fork()-in-a-multithreaded-Qt-process
@@ -32,7 +33,9 @@ namespace DDM {
      * calls exit() in the grandchild, which would otherwise trigger Qt's
      * inherited atexit handlers and deadlock on QThread::wait(). Since this
      * helper is exec()'d and never opens a DBus connection, it is
-     * single-threaded and safe.
+     * single-threaded and safe. Everything a session needs is part of the
+     * request, so the helper reads no configuration of its own: creating a
+     * DConfig object would start a thread and open a DBus connection again.
      */
     class HelperApp : public QCoreApplication {
         Q_OBJECT

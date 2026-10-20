@@ -244,7 +244,7 @@ namespace DDM {
         // Autologin is only tried on the first connection after boot.
         if (!m_connectedOnce) {
             m_connectedOnce = true;
-            if (!hasActiveUser && !mainConfig.Autologin.User.get().isEmpty()) {
+            if (!hasActiveUser && !mainConfig()->autologinUser().isEmpty()) {
                 if (startAutologin())
                     return;
             }
@@ -252,6 +252,12 @@ namespace DDM {
 
         SocketWriter showGreeter(socket);
         showGreeter << quint32(DaemonMessages::ShowGreeter);
+    }
+
+    void Display::recordLastLogin(const QString &user, const Session *session) {
+        mainConfig()->setLastUser(user);
+        if (session)
+            mainConfig()->setLastSession(session->fileName());
     }
 
     void Display::login(QLocalSocket *socket,
@@ -295,20 +301,14 @@ namespace DDM {
             return;
         }
 
-        // save last user and last session
         DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
-        if (mainConfig.Users.RememberLastUser.get())
-            stateConfig.Last.User.set(auth->user);
-        else
-            stateConfig.Last.User.setDefault();
-        if (mainConfig.Users.RememberLastSession.get())
-            stateConfig.Last.Session.set(session.fileName());
-        else
-            stateConfig.Last.Session.setDefault();
-        stateConfig.save();
 
-        if (!startUserSession(auth, session))
+        if (!startUserSession(auth, session)) {
             Q_EMIT loginFailed(socket, user);
+            return;
+        }
+
+        recordLastLogin(user, &session);
     }
 
     bool Display::startUserSession(Auth *auth, const Session &session) {
@@ -375,7 +375,7 @@ namespace DDM {
 
         env.insert(QStringLiteral("XDG_SESSION_PATH"), daemonApp->displayManager()->sessionPath(sessionId));
 
-        env.insert(QStringLiteral("PATH"), mainConfig.Users.DefaultPath.get());
+        env.insert(QStringLiteral("PATH"), mainConfig()->usersDefaultPath());
         env.insert(QStringLiteral("DESKTOP_SESSION"), session.desktopSession());
         if (!session.desktopNames().isEmpty())
             env.insert(QStringLiteral("XDG_CURRENT_DESKTOP"), session.desktopNames());
@@ -447,7 +447,7 @@ namespace DDM {
     }
 
     bool Display::startAutologin() {
-        const QString user = mainConfig.Autologin.User.get();
+        const QString user = mainConfig()->autologinUser();
         if (user.isEmpty())
             return false;
 
@@ -458,20 +458,27 @@ namespace DDM {
 
         qInfo() << "Starting automatic login for user" << user;
 
-        // Determine session: autologin-session, or last used session
-        QString sessionName = mainConfig.Autologin.Session.get();
-        if (sessionName.isEmpty())
-            sessionName = stateConfig.Last.Session.get();
-        if (sessionName.isEmpty()) {
+        QString sessionValue = mainConfig()->autologinSession();
+        if (sessionValue.isEmpty()) {
+            sessionValue = mainConfig()->lastSession();
+            if (!sessionValue.isEmpty())
+                qInfo() << "No autologin session configured, using the last session" << sessionValue;
+        }
+        if (sessionValue.isEmpty()) {
             qWarning() << "No session configured for autologin, keeping greeter";
             return false;
         }
 
-        Session session(Session::WaylandSession, sessionName);
-        if (!session.isValid())
-            session = Session(Session::X11Session, sessionName);
+        Session session;
+        if (QDir::isAbsolutePath(sessionValue)) {
+            session.setTo(sessionValue);
+        } else {
+            session.setTo(Session::WaylandSession, sessionValue);
+            if (!session.isValid())
+                session.setTo(Session::X11Session, sessionValue);
+        }
         if (!session.isValid()) {
-            qCritical() << "Failed to load autologin session" << sessionName;
+            qCritical() << "Failed to load autologin session" << sessionValue;
             return false;
         }
 
@@ -487,23 +494,14 @@ namespace DDM {
             return false;
         }
 
-        // save last user and last session
         DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
-        if (mainConfig.Users.RememberLastUser.get())
-            stateConfig.Last.User.set(user);
-        else
-            stateConfig.Last.User.setDefault();
-        if (mainConfig.Users.RememberLastSession.get())
-            stateConfig.Last.Session.set(session.fileName());
-        else
-            stateConfig.Last.Session.setDefault();
-        stateConfig.save();
 
         if (!startUserSession(auth, session)) {
             qWarning() << "Failed to start automatic login session for user" << user;
             return false;
         }
 
+        recordLastLogin(user, &session);
         return true;
     }
 
@@ -549,13 +547,8 @@ namespace DDM {
             return;
         }
 
-        // Save last user
         DaemonApp::instance()->displayManager()->setLastActivatedUser(user);
-        if (mainConfig.Users.RememberLastUser.get())
-            stateConfig.Last.User.set(user);
-        else
-            stateConfig.Last.User.setDefault();
-        stateConfig.save();
+        recordLastLogin(user);
 
         // Find the auth that started the session, which contains full informations
         for (auto *auth : std::as_const(auths)) {

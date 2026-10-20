@@ -171,9 +171,6 @@ namespace DDM {
     }
 
     void SeatManager::createSeat(const QString &name) {
-        //reload config if needed
-        mainConfig.load();
-
         // create a new display
         qDebug() << "Adding new display...";
         Display *display = new Display(this, name);

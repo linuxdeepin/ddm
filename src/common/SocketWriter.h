@@ -24,7 +24,6 @@
 #include <QDataStream>
 #include <QLocalSocket>
 
-
 namespace DDM {
     class SocketWriter {
         Q_DISABLE_COPY(SocketWriter)
@@ -34,6 +33,7 @@ namespace DDM {
 
         SocketWriter &operator << (const quint32 &u);
         SocketWriter &operator << (const QString &s);
+        SocketWriter &operator << (const QStringList &l);
 
     private:
         QByteArray data;

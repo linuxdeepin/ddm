@@ -26,7 +26,7 @@
 #define daemonApp DaemonApp::instance()
 
 namespace DDM {
-    class Configuration;
+    class Configurations;
     class DisplayManager;
     class PowerManager;
     class SeatManager;
@@ -55,11 +55,15 @@ namespace DDM {
     public slots:
         int newSessionId();
 
+    private slots:
+        void onConfigurationsReady();
+
     private:
         static DaemonApp *self;
 
         int m_lastSessionId { 0 };
 
+        Configurations *m_configurations { nullptr };
         DisplayManager *m_displayManager { nullptr };
         PowerManager *m_powerManager { nullptr };
         SeatManager *m_seatManager { nullptr };

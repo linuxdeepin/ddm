@@ -140,6 +140,12 @@ namespace DDM {
          */
         bool startAutologin();
 
+        /**
+         * Remember the user and optionally the session of a successful
+         * login. ddm owns this state and hands it to the greeter.
+         */
+        void recordLastLogin(const QString &user, const Session *session = nullptr);
+
         /** Indicates whether the display is started */
         bool m_started{ false };
 

@@ -18,10 +18,37 @@
  *
  */
 
-#include "Configuration.h"
-#include "Constants.h"
+#ifndef DDM_CONFIGURATION_H
+#define DDM_CONFIGURATION_H
+
+#include <QtCore/QObject>
+
+// The configuration class is generated from the DConfig schema
+#include "DdmConfig.hpp"
 
 namespace DDM {
-    MainConfig mainConfig;
-    StateConfig stateConfig;
+    DdmConfig *mainConfig();
+
+    // Creates the configuration object and reports when the DConfig backend has
+    // provided its values. Values must not be read before that: the generated
+    // class is initialized asynchronously.
+    class Configurations : public QObject {
+        Q_OBJECT
+    public:
+        explicit Configurations(QObject *parent = nullptr);
+
+        bool ready() const {
+            return m_ready;
+        }
+
+    Q_SIGNALS:
+        void readyChanged();
+
+    private:
+        void setReady();
+
+        bool m_ready{ false };
+    };
 }
+
+#endif // DDM_CONFIGURATION_H

@@ -35,7 +35,6 @@
 #define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
 #endif
 
-#include "Configuration.h"
 #include "Constants.h"
 #include "XAuth.h"
 

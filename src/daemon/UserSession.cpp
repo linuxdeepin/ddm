@@ -23,7 +23,6 @@
 #include <QCoreApplication>
 #include <QSocketNotifier>
 
-#include "Configuration.h"
 #include "TtyUtils.h"
 #include "UserSession.h"
 #include "XAuth.h"
@@ -63,15 +62,35 @@ namespace DDM {
         m_user = user;
     }
 
+    void UserSession::setSessionCommand(const QString &command)
+    {
+        m_sessionCommand = command;
+    }
+
+    void UserSession::setSessionLogFile(const QString &logFile)
+    {
+        m_sessionLogFile = logFile;
+    }
+
+    void UserSession::setNamespaces(const QStringList &namespaces)
+    {
+        m_namespaces = namespaces;
+    }
+
     void UserSession::start(const QString &command,
                             Display::DisplayServerType type,
                             const QByteArray &cookie) {
         QProcessEnvironment env = processEnvironment();
         m_type = type;
 
+        if (m_sessionCommand.isEmpty()) {
+            qCritical() << "Can't start user session: no session command configured";
+            return;
+        }
+
         switch (type) {
         case Display::Treeland: {
-            setProgram(mainConfig.Single.SessionCommand.get());
+            setProgram(m_sessionCommand);
             setArguments(QStringList{ command });
             qInfo() << "Starting Treeland session:" << program() << command;
             QProcess::start();
@@ -107,13 +126,13 @@ namespace DDM {
             setProcessEnvironment(env);
 
             qInfo() << "Starting X11 user session:" << command;
-            setProgram(mainConfig.X11.SessionCommand.get());
+            setProgram(m_sessionCommand);
             setArguments(QStringList{ command });
             QProcess::start();
             return;
         }
         case Display::Wayland: {
-            setProgram(mainConfig.Wayland.SessionCommand.get());
+            setProgram(m_sessionCommand);
             setArguments(QStringList{ command });
             qInfo() << "Starting Wayland user session:" << program() << command;
             QProcess::start();
@@ -194,8 +213,7 @@ namespace DDM {
         }
 
         // enter Linux namespaces
-        const auto namespaces = mainConfig.Namespaces.get();
-        for (const QString &ns : std::as_const(namespaces)) {
+        for (const QString &ns : std::as_const(m_namespaces)) {
             qInfo() << "Entering namespace" << ns;
             int fd = ::open(qPrintable(ns), O_RDONLY);
             if (fd < 0) {
@@ -306,10 +324,7 @@ namespace DDM {
 
         // determine stderr log file based on session type
         QString sessionLog = QStringLiteral("%1/%2")
-            .arg(QString::fromLocal8Bit(pw.pw_dir))
-            .arg(type == Display::X11
-                 ? mainConfig.X11.SessionLogFile.get()
-                 : mainConfig.Wayland.SessionLogFile.get());
+            .arg(QString::fromLocal8Bit(pw.pw_dir), m_sessionLogFile);
 
         // create the path
         QFileInfo finfo(sessionLog);

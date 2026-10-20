@@ -52,6 +52,8 @@ namespace DDM {
         SwitchToGreeter,
         UserLoggedIn,
         ShowGreeter,
+        SessionDirs,
+        LastLogin,
     };
 
     enum Capability {

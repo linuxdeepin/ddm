@@ -25,6 +25,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QProcess>
+#include <QtCore/QStringList>
 #include <QtCore/QTemporaryFile>
 
 #include "Display.h"
@@ -37,7 +38,9 @@ namespace DDM {
 
         void setTty(int tty);
         void setUser(const QString &user);
-
+        void setSessionCommand(const QString &command);
+        void setSessionLogFile(const QString &logFile);
+        void setNamespaces(const QStringList &namespaces);
         void start(const QString &command,
                    Display::DisplayServerType type,
                    const QByteArray &cookie = QByteArray());
@@ -58,6 +61,9 @@ namespace DDM {
         Display::DisplayServerType m_type{ Display::X11 };
         int m_tty{ 0 };
         QString m_user;
+        QString m_sessionCommand;
+        QString m_sessionLogFile;
+        QStringList m_namespaces;
     };
 }
 

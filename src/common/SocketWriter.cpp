@@ -44,4 +44,9 @@ namespace DDM {
         return *this;
     }
 
+    SocketWriter &SocketWriter::operator << (const QStringList &l) {
+        *output << l;
+
+        return *this;
+    }
 }
