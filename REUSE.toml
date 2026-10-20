@@ -3,7 +3,7 @@ SPDX-PackageName = "ddm"
 SPDX-PackageDownloadLocation = "https://github.com/linuxdeepin/ddm"
 
 [[annotations]]
-path = [".github/**", "garnix.yaml"]
+path = [".github/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"
 SPDX-License-Identifier = "CC0-1.0"
@@ -16,12 +16,6 @@ SPDX-License-Identifier = "CC0-1.0"
 
 [[annotations]]
 path = ["debian/**", "rpm/**", "archlinux/**"]
-precedence = "aggregate"
-SPDX-FileCopyrightText = "None"
-SPDX-License-Identifier = "CC0-1.0"
-
-[[annotations]]
-path = ["**.nix", ".envrc", "flake.lock", "renovate.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"
 SPDX-License-Identifier = "CC0-1.0"
