@@ -21,9 +21,16 @@ CPUWeight=10000
 IOWeight=10000
 IOSchedulingClass=best-effort
 IOSchedulingPriority=0
-PrivateIPC=true
+
+# PrivateIPC and ProtectKernelModules are deliberately disabled: both make
+# systemd create a private (slave) mount namespace for this unit (one for its
+# own mqueuefs on /dev/mqueue, the other to hide /usr/lib/modules), and every
+# session process inherits it. Mounts made in the PAM session stage, such as
+# the dlnfs long-file-name mount, then never propagate to the rest of the
+# system, so desktop applications cannot see them.
+#PrivateIPC=true
 ProtectClock=true
-ProtectKernelModules=true
+#ProtectKernelModules=true
 
 [Install]
 Alias=display-manager.service
