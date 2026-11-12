@@ -171,26 +171,46 @@ const QString CK2_OBJECT = QStringLiteral("org.freedesktop.ConsoleKit.Manager");
         }
 
         void powerOff() const {
-            m_interface->call(QStringLiteral("PowerOff"), true);
+            callWithInhibitCheck(QStringLiteral("PowerOff"), QStringLiteral("PowerOffWithFlags"));
         }
 
         void reboot() const {
-            m_interface->call(QStringLiteral("Reboot"), true);
+            callWithInhibitCheck(QStringLiteral("Reboot"), QStringLiteral("RebootWithFlags"));
         }
 
         void suspend() const {
-            m_interface->call(QStringLiteral("Suspend"), true);
+            callWithInhibitCheck(QStringLiteral("Suspend"), QStringLiteral("SuspendWithFlags"));
         }
 
         void hibernate() const {
-            m_interface->call(QStringLiteral("Hibernate"), true);
+            callWithInhibitCheck(QStringLiteral("Hibernate"), QStringLiteral("HibernateWithFlags"));
         }
 
         void hybridSleep() const {
-            m_interface->call(QStringLiteral("HybridSleep"), true);
+            callWithInhibitCheck(QStringLiteral("HybridSleep"), QStringLiteral("HybridSleepWithFlags"));
         }
 
     private:
+        // The old Suspend(bool) style API only sets SD_LOGIND_INTERACTIVE, so logind lets a
+        // root caller (us) ignore block inhibitors and the desktop's "don't sleep/shut down"
+        // requests are lost. The *WithFlags variants can ask logind to enforce them for root
+        // too, which keeps a user-initiated power action behind the lock screen behaving like
+        // it does on X11. ConsoleKit2 has no such API and no inhibitors, so it keeps the old
+        // call.
+        void callWithInhibitCheck(const QString &plainMethod, const QString &flagsMethod) const {
+            if (m_interface->interface() != LOGIN1_OBJECT) {
+                m_interface->call(plainMethod, true);
+                return;
+            }
+
+            // logind declares the parameter as uint64 ("t"); an int64 ("x") is refused with
+            // InvalidArgs before the flag is even looked at.
+            constexpr qulonglong rootCheckInhibitors = 1; // SD_LOGIND_ROOT_CHECK_INHIBITORS
+            auto reply = m_interface->call(flagsMethod, rootCheckInhibitors);
+            if (reply.type() == QDBusMessage::ErrorMessage)
+                qWarning() << flagsMethod << "refused:" << reply.errorMessage();
+        }
+
         QDBusInterface *m_interface { nullptr };
     };
 
