@@ -250,8 +250,7 @@ namespace DDM {
             }
         }
 
-        SocketWriter showGreeter(socket);
-        showGreeter << quint32(DaemonMessages::ShowGreeter);
+        writer << quint32(DaemonMessages::ShowGreeter);
     }
 
     void Display::recordLastLogin(const QString &user, const Session *session) {
