@@ -1,3 +1,20 @@
+ddm (0.5.0) unstable; urgency=medium
+
+  * fix: restore sessions before showing the greeter
+  * fix: add login.defs to Build-Depends for cmake UID detection
+  * fix: honour logind block inhibitors for power actions
+  * fix: keep ddm in the init mount namespace
+  * docs: update the DConfig and login flow documentation
+  * feat(config)!: migrate DDM configuration to DConfig
+  * refactor(common): move daemon-only sources out of libddm-common
+  * chore: drop the unused Nix and Renovate files
+  * docs: update ddm documentation to match current code
+  * feat: add pam_deepin_keyring support to PAM services
+  * refactor(helper): move utmp/wtmp accounting into session helper
+  * fix(daemon): move PAM transaction into a dedicated session helper
+
+ -- rewine <luhongxu@deepin.org>  Tue, 17 Nov 2026 13:20:26 +0800
+
 ddm (0.4.0) unstable; urgency=medium
 
   * feat: store logind session id as string instead of int
